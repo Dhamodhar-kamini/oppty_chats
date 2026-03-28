@@ -1,3 +1,4 @@
+// @refresh reset
 import React, { createContext, useContext, useEffect, useMemo, useReducer } from "react";
 
 const STORAGE_KEY = "opty_chat_v1";
@@ -22,30 +23,18 @@ function saveChats(chats) {
 const seed = [
   {
     id: "1",
-    name: "Alice Whitman",
+    name: "Elena@oppty",
     avatarUrl: "https://i.pravatar.cc/100?img=5",
     isOnline: true,
     lastSeen: "",
     messages: [
-      {
-        id: uid(),
-        chatId: "1",
-        sender: "them",
-        text: "Here are all the files. Let me know once you’ve had a look.",
-        createdAt: Date.now() - 1000 * 60 * 55,
-      },
-      {
-        id: uid(),
-        chatId: "1",
-        sender: "me",
-        text: "Wow! Have great time. Enjoy.",
-        createdAt: Date.now() - 1000 * 60 * 52,
-      },
+      { id: uid(), chatId: "1", sender: "them", text: "Here are all the files. Let me know once you’ve had a look.", createdAt: Date.now() - 1000 * 60 * 55 },
+      { id: uid(), chatId: "1", sender: "me", text: "Wow! Have great time. Enjoy.", createdAt: Date.now() - 1000 * 60 * 52 },
     ],
   },
   {
     id: "2",
-    name: "Jason Ballmer",
+    name: "Dhamodhar@oppty",
     avatarUrl: "https://i.pravatar.cc/100?img=12",
     isOnline: false,
     lastSeen: "last seen today at 10:21",
@@ -60,6 +49,13 @@ const ChatContext = createContext(null);
 
 function reducer(state, action) {
   switch (action.type) {
+    case "INIT":
+      return { chats: action.chats };
+
+    case "RESET":
+      saveChats(seed);
+      return { chats: seed };
+
     case "SEND": {
       const text = action.text.trim();
       if (!text) return state;
@@ -84,18 +80,19 @@ function reducer(state, action) {
       saveChats(next);
       return { chats: next };
     }
+
     default:
       return state;
   }
 }
 
 export function ChatProvider({ children }) {
-  const persisted = loadChats();
-  const [state, dispatch] = useReducer(reducer, { chats: persisted ?? seed });
+  const [state, dispatch] = useReducer(reducer, { chats: seed });
 
   useEffect(() => {
-    if (!persisted) saveChats(state.chats);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const persisted = loadChats();
+    dispatch({ type: "INIT", chats: persisted ?? seed });
+    if (!persisted) saveChats(seed);
   }, []);
 
   const api = useMemo(
@@ -103,6 +100,7 @@ export function ChatProvider({ children }) {
       chats: state.chats,
       getChatById: (id) => state.chats.find((c) => c.id === id),
       sendMessage: (chatId, text) => dispatch({ type: "SEND", chatId, text }),
+      resetChats: () => dispatch({ type: "RESET" }), // ✅
     }),
     [state.chats]
   );
