@@ -1,9 +1,9 @@
 import React from "react";
 import { Outlet, useParams } from "react-router-dom";
 import { useMediaQuery } from "../../hooks/useMediaQuery.js";
-import ChatListPage from "../chatList/ChatListPage";
+import ChatListPage from "../chatList/ChatListPage.jsx";
 
-export default function ChatsLayout() {
+export default function ChatsLayout({ mode }) {
   const { chatId } = useParams();
   const isDesktop = useMediaQuery("(min-width: 900px)");
 
@@ -14,7 +14,7 @@ export default function ChatsLayout() {
     <div className="chatShell">
       {showList && (
         <aside className="chatListPanel" aria-label="Chat list">
-          <ChatListPage />
+          <ChatListPage mode={mode} />
         </aside>
       )}
 

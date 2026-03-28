@@ -240,9 +240,9 @@
   margin: 10px auto 14px;
   padding: 6px 10px;
   border-radius: 999px;
-  background: var(--accent-soft);            /* FIX */
-  border: 1px solid var(--accent-soft-border); /* FIX */
-  color: #9a3f00;
+  background: white;            /* FIX */
+  border: 1px solid rgb(184, 181, 181); /* FIX */
+  color: gray;
   font-size: 12px;
 }
 
@@ -319,17 +319,38 @@
 }
 
 .sendBtn {
+  width: 44px;
+  height: 44px;
+  padding: 0;
   border: 0;
-  padding: 10px 14px;
-  border-radius: 12px;
+  border-radius: 999px;
   background: var(--accent);
-  color: white;
-  font-weight: 900;
+  color: #ffffff;
+  display: grid;
+  place-items: center;
   cursor: pointer;
+  box-shadow: 0 8px 18px rgba(255, 107, 0, 0.25);
+  transition: transform 120ms ease, filter 120ms ease, opacity 120ms ease;
 }
 
 .sendBtn:hover {
   filter: brightness(1.03);
+  transform: translateY(-1px);
+}
+
+.sendBtn:active {
+  transform: translateY(0px);
+}
+
+.sendBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.sendIcon {
+  display: block;
 }
 
 /* Empty state */
@@ -349,3 +370,46 @@
   font-size: 18px;
   font-weight: 900;
 }
+
+.brandWithLogo {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.brandLogo {
+  width: 100px;
+  height: 30px;
+  object-fit: contain;
+}
+
+.brandRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.opptyLogo {
+  height: 26px;
+  width: auto;
+  object-fit: contain;
+}
+
+.sectionTitle {
+  font-weight: 1000;
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: 0.2px;
+}
+
+.titleOrange {
+  color: var(--accent);
+  margin-left: -26px;
+}
+
+.titleBlack {
+  color: var(--text);
+}
+
+.opptyLogo { height: 30px; }

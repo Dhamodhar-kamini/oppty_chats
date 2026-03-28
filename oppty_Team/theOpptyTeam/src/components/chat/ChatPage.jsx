@@ -18,6 +18,7 @@ export default function ChatPage() {
 
   const [text, setText] = useState("");
   const endRef = useRef(null);
+  const canSend = text.trim().length > 0;
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -37,7 +38,7 @@ export default function ChatPage() {
   if (!chat) {
     return (
       <div className="chatEmpty">
-        <div className="muted">Chat not found.</div>
+        <div className="muted">Chat not found: {chatId}</div>
       </div>
     );
   }
@@ -53,7 +54,11 @@ export default function ChatPage() {
     <div className="chat">
       <header className="chatHeader">
         {!isDesktop && (
-          <button className="iconBtn" onClick={() => navigate("/chats")} aria-label="Back">
+          <button
+            className="iconBtn"
+            onClick={() => navigate("..", { relative: "path" })} // ✅ works for /chats/:id and /groups/:id
+            aria-label="Back"
+          >
             ←
           </button>
         )}
@@ -99,8 +104,18 @@ export default function ChatPage() {
             }
           }}
         />
-        <button className="sendBtn" onClick={onSend} aria-label="Send">
-          Send
+
+        <button
+          type="button"
+          className="sendBtn"
+          onClick={onSend}
+          aria-label="Send"
+          title="Send"
+          disabled={!canSend}
+        >
+          <svg className="sendIcon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+          </svg>
         </button>
       </footer>
     </div>

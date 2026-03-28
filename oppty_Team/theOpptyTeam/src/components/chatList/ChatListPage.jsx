@@ -1,34 +1,58 @@
 import React, { useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useChats } from "../../context/ChatContext.jsx";
-import opptyLogo from '../../assets/opptylogo.png'
+import opptyLogo from "../../assets/opptylogo.png"; // ✅ your logo image
 
 function formatTime(ts) {
   if (!ts) return "";
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-export default function ChatListPage() {
+function SectionTitle({ mode }) {
+  if (mode === "group") {
+    return (
+      <span className="sectionTitle">
+        <span className="titleOrange">Gro</span>
+        <span className="titleBlack">ups</span>
+      </span>
+    );
+  }
+
+  return (
+    <span className="sectionTitle">
+      <span className="titleOrange">Cha</span>
+      <span className="titleBlack">ts</span>
+    </span>
+  );
+}
+
+export default function ChatListPage({ mode = "dm" }) {
   const { chats } = useChats();
   const [q, setQ] = useState("");
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
-    if (!query) return chats;
-    return chats.filter((c) => c.name.toLowerCase().includes(query));
-  }, [chats, q]);
+    return chats
+      .filter((c) => (c.kind ?? "dm") === mode)
+      .filter((c) => (query ? c.name.toLowerCase().includes(query) : true));
+  }, [chats, mode, q]);
+
+  const placeholder = mode === "group" ? "Search groups" : "Search or start new chat";
+  const emptyText = mode === "group" ? "groups" : "chats";
 
   return (
     <div className="sidebarInner">
       <div className="sidebarTop">
-        <div className="brand"><img src={opptyLogo} alt="logo" style={{height:"24px"}} /><span style={{marginLeft:"-18px", color:"orangered"}}>Ch</span>ats</div>
+        <div className="brandRow">
+          <img className="opptyLogo" src={opptyLogo} alt="Oppty" />
+          <SectionTitle mode={mode} />
+        </div>
 
         <input
           className="searchInput"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search or start new chat"
-          aria-label="Search chats"
+          placeholder={placeholder}
         />
       </div>
 
@@ -38,7 +62,7 @@ export default function ChatListPage() {
           return (
             <NavLink
               key={chat.id}
-              to={`/chats/${chat.id}`}
+              to={chat.id} // relative => /chats/:id or /groups/:id
               className={({ isActive }) => `chatRow ${isActive ? "active" : ""}`}
               role="listitem"
             >
@@ -55,6 +79,12 @@ export default function ChatListPage() {
             </NavLink>
           );
         })}
+
+        {filtered.length === 0 && (
+          <div className="emptyList">
+            <div className="muted">No {emptyText} found.</div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -118,3 +118,18 @@
     height: 32px;
   }
 }
+
+
+.sidebar-icon svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.sidebar-item {
+  text-decoration: none; /* because now it's NavLink */
+}
+
+.sidebar-item.active .sidebar-icon {
+  color: var(--accent, #ff6b00);
+}
