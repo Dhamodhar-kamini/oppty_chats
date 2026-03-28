@@ -1,0 +1,348 @@
+:root {
+  --sidebar-width: 64px;
+
+  /* Orange + White theme */
+  --bg: #f4f6f8;                  /* app background */
+  --panel: #ffffff;               /* panels/cards */
+  --panel-2: #f7f8fa;             /* chat messages area */
+  --border: #e9edef;              /* borders */
+
+  --text: #111b21;                /* primary text */
+  --muted: #667781;               /* secondary text */
+
+  --accent: #ff6b00;              /* orange */
+  --accent-soft: #fff3ea;         /* soft orange */
+  --accent-soft-border: #ffd7bf;  /* soft orange border */
+
+  --shadow: 0 8px 24px rgba(17, 27, 33, 0.08);
+}
+
+/* App layout */
+.app {
+  width: 100vw;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.main-content {
+  margin-left: var(--sidebar-width);
+  width: calc(100vw - var(--sidebar-width));
+  height: 100vh;
+  overflow: hidden; /* internal panels will scroll */
+  background: var(--bg);
+}
+
+@media (max-width: 480px) {
+  :root {
+    --sidebar-width: 60px;
+  }
+}
+
+/* ---------- Chats layout inside main-content ---------- */
+.chatShell {
+  height: 100%;
+  display: flex;
+  background: var(--bg);
+}
+
+.chatListPanel {
+  width: 380px;
+  min-width: 320px;
+  height: 100%;
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+}
+
+.chatPanel {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  background: var(--panel);
+}
+
+/* ---------- Chat List ---------- */
+.sidebarInner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--panel);
+}
+
+.sidebarTop {
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.brand {
+  font-weight: 900;
+  font-size: 18px;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+
+.searchInput {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  outline: none;
+  background: #ffffff;
+  color: var(--text);
+}
+
+.searchInput::placeholder {
+  color: rgba(102, 119, 129, 0.85);
+}
+
+.chatList {
+  overflow: auto;
+  padding: 8px;
+}
+
+.chatRow {
+  display: flex;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 12px;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.chatRow:hover {
+  background: #f1f3f5; /* visible on white */
+}
+
+.chatRow.active {
+  background: var(--accent-soft);
+  outline: 1px solid var(--accent-soft-border);
+}
+
+.avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+
+.chatRowBody {
+  min-width: 0;
+  flex: 1;
+}
+
+.chatRowTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.chatName {
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chatTime {
+  font-size: 12px;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+
+.chatPreview {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.emptyList {
+  padding: 18px 12px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* ---------- Chat Page ---------- */
+.chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: var(--panel);
+}
+
+.chatHeader {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.chatHeaderText {
+  min-width: 0;
+  flex: 1;
+}
+
+.chatHeaderName {
+  color: var(--text);
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.chatHeaderMeta {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.chatHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.iconBtn {
+  border: 0;
+  background: transparent;
+  color: var(--text); /* FIX: was dark-theme color */
+  font-size: 18px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.iconBtn:hover {
+  background: var(--accent-soft);
+}
+
+/* Messages area */
+.messages {
+  flex: 1;
+  overflow: auto;
+  padding: 14px 12px;
+  background: var(--panel-2);
+}
+
+.dayChip {
+  width: fit-content;
+  margin: 10px auto 14px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);            /* FIX */
+  border: 1px solid var(--accent-soft-border); /* FIX */
+  color: #9a3f00;
+  font-size: 12px;
+}
+
+/* Bubbles */
+.bubbleRow {
+  display: flex;
+  margin: 6px 0;
+}
+
+.bubbleRow.mine {
+  justify-content: flex-end;
+}
+
+.bubbleRow.theirs {
+  justify-content: flex-start;
+}
+
+.bubble {
+  max-width: min(620px, 78%);
+  padding: 10px 10px 8px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 0 rgba(17, 27, 33, 0.03);
+}
+
+.bubble.mine {
+  background: var(--accent-soft);               /* FIX: remove green */
+  border-color: var(--accent-soft-border);
+  color: var(--text);
+  border-top-right-radius: 6px;
+}
+
+.bubble.theirs {
+  background: #ffffff;
+  color: var(--text);
+  border-top-left-radius: 6px;
+}
+
+.bubbleText {
+  white-space: pre-wrap;
+  line-height: 1.35;
+}
+
+.bubbleMeta {
+  text-align: right;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* Composer */
+.composer {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+}
+
+.composerInput {
+  flex: 1;
+  resize: none;
+  max-height: 140px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  outline: none;
+  background: #ffffff;   /* FIX: was bg grey */
+  color: var(--text);
+}
+
+.composerInput::placeholder {
+  color: rgba(102, 119, 129, 0.85);
+}
+
+.sendBtn {
+  border: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: white;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.sendBtn:hover {
+  filter: brightness(1.03);
+}
+
+/* Empty state */
+.chatEmpty {
+  height: 100%;
+  width: 100%;
+  display: grid;
+  place-content: center;
+  gap: 10px;
+  padding: 20px;
+  text-align: center;
+  background: var(--panel-2);
+}
+
+.emptyTitle {
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 900;
+}
