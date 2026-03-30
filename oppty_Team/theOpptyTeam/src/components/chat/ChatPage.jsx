@@ -369,18 +369,6 @@ export default function ChatPage() {
                   {chat.contact || chat.email || "Not available"}
                 </strong>
               </div>
-
-              <div className="chatInfoCardRow">
-                <span className="chatInfoLabel">Messages</span>
-                <strong className="chatInfoValue">{chat.messages?.length || 0}</strong>
-              </div>
-
-              <div className="chatInfoCardRow">
-                <span className="chatInfoLabel">Type</span>
-                <strong className="chatInfoValue">
-                  {chat.type || "Direct message"}
-                </strong>
-              </div>
             </div>
 
             <div className="chatInfoDrawerActions">
