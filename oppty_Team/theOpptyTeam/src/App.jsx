@@ -1,17 +1,35 @@
-import React from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Navigate, Route, Routes, useLocation, matchPath } from "react-router-dom";
 import Sidebar from "./components/sidebar/Sidebar.jsx";
 import ChatsLayout from "./components/chat/ChatsLayout.jsx";
 import EmptyState from "./components/chat/EmptyState.jsx";
 import ChatPage from "./components/chat/ChatPage.jsx";
 import "./App.css";
 
-export default function App() {
+function AppContent() {
+  const location = useLocation();
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const isChatRoute =
+    !!matchPath("/chats/:chatId", location.pathname) ||
+    !!matchPath("/groups/:chatId", location.pathname);
+
+  const hideSidebarOnMobile = isMobile && isChatRoute;
+
   return (
     <div className="app">
-      <Sidebar />
+      {!hideSidebarOnMobile && <Sidebar />}
 
-      <main className="main-content">
+      <main className={`main-content ${hideSidebarOnMobile ? "main-content--full" : ""}`}>
         <Routes>
           <Route path="/" element={<Navigate to="/chats" replace />} />
 
@@ -31,3 +49,5 @@ export default function App() {
     </div>
   );
 }
+
+export default AppContent;
