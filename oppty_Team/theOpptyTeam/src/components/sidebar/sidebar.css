@@ -460,3 +460,145 @@
     font-size: 13px;
   }
 }
+
+
+.sidebar-create-wrapper {
+  position: relative;
+}
+
+.sidebar-create-btn {
+  background: #fff3ea;
+  color: #ff6b00;
+}
+
+.sidebar-create-btn:hover {
+  background: #ffe7d8;
+}
+
+.create-popup {
+  position: absolute;
+  top: 0;
+  left: 58px;
+  width: 290px;
+  background: #ffffff;
+  border: 1px solid #e9edef;
+  border-radius: 16px;
+  box-shadow: 0 18px 40px rgba(17, 27, 33, 0.16);
+  padding: 14px;
+  z-index: 9999;
+  animation: popupFadeIn 0.2s ease;
+}
+
+.create-popup::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: 16px;
+  width: 16px;
+  height: 16px;
+  background: #ffffff;
+  border-left: 1px solid #e9edef;
+  border-bottom: 1px solid #e9edef;
+  transform: rotate(45deg);
+}
+
+.create-popup-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #111b21;
+  margin-bottom: 14px;
+}
+
+.create-popup-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.create-menu-btn {
+  width: 100%;
+  border: none;
+  background: #f7f8f9;
+  color: #111b21;
+  text-align: left;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.create-menu-btn:hover {
+  background: #eef1f3;
+}
+
+.create-menu-btn:active {
+  transform: scale(0.99);
+}
+
+.create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+@media (max-width: 768px) {
+  .create-popup {
+    top: auto;
+    bottom: 58px;
+    left: 0;
+    right: auto;
+    width: 260px;
+  }
+
+  .create-popup::before {
+    left: 18px;
+    top: auto;
+    bottom: -8px;
+    transform: rotate(225deg);
+  }
+}
+
+@media (max-width: 480px) {
+  .create-popup {
+    width: min(250px, calc(100vw - 24px));
+    bottom: 54px;
+    left: 0;
+  }
+}
+
+
+.logout-confirm-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.logout-confirm-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #fff2ea;
+  color: #ff6b00;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  margin-bottom: 12px;
+}
+
+.logout-confirm-title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 800;
+  color: #111b21;
+}
+
+.logout-confirm-text {
+  margin: 0 0 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #667781;
+}

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
+import { useChats } from "../../context/ChatContext.jsx";
 import profileImg from "../../assets/profiledp.jpeg";
 import "./Sidebar.css";
 
@@ -25,15 +26,40 @@ function GroupsIcon() {
   );
 }
 
+function NewChatIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"
+      />
+    </svg>
+  );
+}
+
 const ICON_BY_ID = {
   chats: <ChatsIcon />,
   groups: <GroupsIcon />,
 };
 
 export default function Sidebar({ isChatOpen }) {
+  const navigate = useNavigate();
+  const { addContact, addGroup } = useChats();
+
   const [showProfilePopup, setShowProfilePopup] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isViewingProfile, setIsViewingProfile] = useState(false);
+
+  const [showCreatePopup, setShowCreatePopup] = useState(false);
+  const [createMode, setCreateMode] = useState("menu");
+
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  const [newContactName, setNewContactName] = useState("");
+  const [newContactEmail, setNewContactEmail] = useState("");
+
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupAbout, setNewGroupAbout] = useState("");
 
   const [profile, setProfile] = useState({
     name: "Your Name",
@@ -50,6 +76,9 @@ export default function Sidebar({ isChatOpen }) {
   const profileBtnRef = useRef(null);
   const fileInputRef = useRef(null);
 
+  const createPopupRef = useRef(null);
+  const createBtnRef = useRef(null);
+
   const navItems = [
     { id: "chats", to: "/chats", badge: "99+" },
     { id: "groups", to: "/groups", dot: true },
@@ -57,6 +86,8 @@ export default function Sidebar({ isChatOpen }) {
 
   const handleTogglePopup = () => {
     setShowProfilePopup((prev) => !prev);
+    setShowCreatePopup(false);
+    setShowLogoutConfirm(false);
     setIsEditingProfile(false);
     setIsViewingProfile(false);
     setDraftName(profile.name);
@@ -65,6 +96,7 @@ export default function Sidebar({ isChatOpen }) {
 
   const handleClosePopup = () => {
     setShowProfilePopup(false);
+    setShowLogoutConfirm(false);
     setIsEditingProfile(false);
     setIsViewingProfile(false);
     setDraftName(profile.name);
@@ -107,9 +139,19 @@ export default function Sidebar({ isChatOpen }) {
     setIsEditingProfile(false);
   };
 
-  const handleLogout = () => {
-    console.log("Logged out");
+  const handleOpenLogoutConfirm = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const handleCancelLogout = () => {
+    setShowLogoutConfirm(false);
+  };
+
+  const handleConfirmLogout = () => {
+    localStorage.removeItem("employeeAuth");
+    setShowLogoutConfirm(false);
     setShowProfilePopup(false);
+    navigate("/login");
   };
 
   const handlePhotoButtonClick = () => {
@@ -123,22 +165,77 @@ export default function Sidebar({ isChatOpen }) {
     setDraftPhoto(objectUrl);
   };
 
+  const handleToggleCreatePopup = () => {
+    setShowCreatePopup((prev) => !prev);
+    setShowProfilePopup(false);
+    setShowLogoutConfirm(false);
+    setCreateMode("menu");
+  };
+
+  const handleCloseCreatePopup = () => {
+    setShowCreatePopup(false);
+    setCreateMode("menu");
+    setNewContactName("");
+    setNewContactEmail("");
+    setNewGroupName("");
+    setNewGroupAbout("");
+  };
+
+  const handleCreateContact = () => {
+    const name = newContactName.trim();
+    if (!name) return;
+
+    addContact({
+      name,
+      contact: newContactEmail,
+    });
+
+    handleCloseCreatePopup();
+    navigate("/chats");
+  };
+
+  const handleCreateGroup = () => {
+    const name = newGroupName.trim();
+    if (!name) return;
+
+    addGroup({
+      name,
+      about: newGroupAbout,
+    });
+
+    handleCloseCreatePopup();
+    navigate("/groups");
+  };
+
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (
+      const clickedOutsideProfile =
         showProfilePopup &&
         popupRef.current &&
         !popupRef.current.contains(event.target) &&
         profileBtnRef.current &&
-        !profileBtnRef.current.contains(event.target)
-      ) {
+        !profileBtnRef.current.contains(event.target);
+
+      const clickedOutsideCreate =
+        showCreatePopup &&
+        createPopupRef.current &&
+        !createPopupRef.current.contains(event.target) &&
+        createBtnRef.current &&
+        !createBtnRef.current.contains(event.target);
+
+      if (clickedOutsideProfile) {
         handleClosePopup();
+      }
+
+      if (clickedOutsideCreate) {
+        handleCloseCreatePopup();
       }
     };
 
     const handleEscape = (event) => {
       if (event.key === "Escape") {
         handleClosePopup();
+        handleCloseCreatePopup();
       }
     };
 
@@ -149,164 +246,273 @@ export default function Sidebar({ isChatOpen }) {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [showProfilePopup, profile]);
+  }, [showProfilePopup, showCreatePopup, profile]);
 
   return (
-    <aside className={`sidebar ${isChatOpen ? "sidebar-hidden-mobile" : ""}`}>
-      <div className="sidebar-top">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.id}
-            to={item.to}
-            className={({ isActive }) => `sidebar-item ${isActive ? "active" : ""}`}
-            aria-label={item.id}
-            title={item.id}
-          >
-            <span className="sidebar-icon">{ICON_BY_ID[item.id]}</span>
-            {item.badge && <span className="sidebar-badge">{item.badge}</span>}
-            {item.dot && <span className="sidebar-dot" />}
-          </NavLink>
-        ))}
-
-        <div className="sidebar-divider" />
-        <div className="sidebar-ai" />
-      </div>
-
-      <div className="sidebar-bottom">
-        <div className="sidebar-profile-wrapper">
-          <button
-            ref={profileBtnRef}
-            type="button"
-            className="sidebar-profile"
-            aria-label="profile"
-            title="Profile"
-            onClick={handleTogglePopup}
-          >
-            <img src={profile.photo} alt="User" className="sidebar-profile-img" />
-          </button>
-
-          {showProfilePopup && (
-            <div
-              ref={popupRef}
-              className="profile-popup profile-popup--expanded"
-              role="dialog"
-              aria-label="Profile options"
+    <>
+      <aside className={`sidebar ${isChatOpen ? "sidebar-hidden-mobile" : ""}`}>
+        <div className="sidebar-top">
+          {navItems.map((item) => (
+            <NavLink
+              key={item.id}
+              to={item.to}
+              className={({ isActive }) => `sidebar-item ${isActive ? "active" : ""}`}
+              aria-label={item.id}
+              title={item.id}
             >
-              {!isEditingProfile && !isViewingProfile && (
-                <>
-                  <div className="profile-popup-header">
-                    <img src={profile.photo} alt="User" className="profile-popup-avatar" />
-                    <div className="profile-popup-user">
-                      <h4>{profile.name}</h4>
-                      <p>{profile.email}</p>
+              <span className="sidebar-icon">{ICON_BY_ID[item.id]}</span>
+              {item.badge && <span className="sidebar-badge">{item.badge}</span>}
+              {item.dot && <span className="sidebar-dot" />}
+            </NavLink>
+          ))}
+
+          <div className="sidebar-divider" />
+
+          <div className="sidebar-create-wrapper">
+            <button
+              ref={createBtnRef}
+              type="button"
+              className="sidebar-item sidebar-create-btn"
+              aria-label="New chat"
+              title="New chat"
+              onClick={handleToggleCreatePopup}
+            >
+              <span className="sidebar-icon">
+                <NewChatIcon />
+              </span>
+            </button>
+
+            {showCreatePopup && (
+              <div
+                ref={createPopupRef}
+                className="create-popup"
+                role="dialog"
+                aria-label="Create new chat or group"
+              >
+                {createMode === "menu" && (
+                  <>
+                    <div className="create-popup-title">Start something new</div>
+
+                    <div className="create-popup-menu">
+                      <button
+                        type="button"
+                        className="create-menu-btn"
+                        onClick={() => setCreateMode("contact")}
+                      >
+                        Add New Contact
+                      </button>
+
+                      <button
+                        type="button"
+                        className="create-menu-btn"
+                        onClick={() => setCreateMode("group")}
+                      >
+                        Create New Group
+                      </button>
                     </div>
-                  </div>
+                  </>
+                )}
 
-                  <div className="profile-popup-menu">
-                    <button type="button" className="profile-menu-btn" onClick={handleViewProfile}>
-                      View Profile
-                    </button>
+                {createMode === "contact" && (
+                  <>
+                    <div className="create-popup-title">Add New Contact</div>
 
-                    <button type="button" className="profile-menu-btn" onClick={handleStartEdit}>
-                      Edit Name / Photo
-                    </button>
+                    <div className="create-form">
+                      <label className="profile-input-group">
+                        <span className="profile-input-label">Name</span>
+                        <input
+                          type="text"
+                          className="profile-input"
+                          value={newContactName}
+                          onChange={(e) => setNewContactName(e.target.value)}
+                          placeholder="Enter contact name"
+                        />
+                      </label>
 
-                    <button
-                      type="button"
-                      className="profile-menu-btn profile-menu-btn-danger"
-                      onClick={handleLogout}
-                    >
-                      Logout
-                    </button>
-                  </div>
-                </>
-              )}
+                      <label className="profile-input-group">
+                        <span className="profile-input-label">Email / Contact</span>
+                        <input
+                          type="text"
+                          className="profile-input"
+                          value={newContactEmail}
+                          onChange={(e) => setNewContactEmail(e.target.value)}
+                          placeholder="Enter email or phone"
+                        />
+                      </label>
 
-              {isViewingProfile && (
-                <>
-                  <div className="profile-popup-header">
-                    <img
-                      src={profile.photo}
-                      alt="User"
-                      className="profile-popup-avatar profile-popup-avatar-large"
-                    />
-                    <div className="profile-popup-user">
-                      <h4>{profile.name}</h4>
-                      <p>{profile.email}</p>
-                    </div>
-                  </div>
-
-                  <div className="profile-view-details">
-                    <div className="profile-detail-card">
-                      <span className="profile-detail-label">Phone</span>
-                      <span className="profile-detail-value">{profile.phone}</span>
-                    </div>
-
-                    <div className="profile-detail-card">
-                      <span className="profile-detail-label">Bio</span>
-                      <span className="profile-detail-value">{profile.bio}</span>
-                    </div>
-                  </div>
-
-                  <div className="profile-popup-actions">
-                    <button
-                      type="button"
-                      className="popup-btn popup-btn-secondary"
-                      onClick={handleBackToMenu}
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="button"
-                      className="popup-btn popup-btn-danger"
-                      onClick={handleStartEdit}
-                    >
-                      Edit Profile
-                    </button>
-                  </div>
-                </>
-              )}
-
-              {isEditingProfile && (
-                <>
-                  <div className="profile-popup-header">
-                    <img src={draftPhoto} alt="Preview" className="profile-popup-avatar" />
-                    <div className="profile-popup-user">
-                      <h4>Edit Profile</h4>
-                      <p>Update your name and photo</p>
-                    </div>
-                  </div>
-
-                  <div className="profile-edit-form">
-                    <label className="profile-input-group">
-                      <span className="profile-input-label">Name</span>
-                      <input
-                        type="text"
-                        className="profile-input"
-                        value={draftName}
-                        onChange={(e) => setDraftName(e.target.value)}
-                        placeholder="Enter your name"
-                      />
-                    </label>
-
-                    <div className="profile-input-group">
-                      <span className="profile-input-label">Photo</span>
-                      <div className="profile-edit-actions">
+                      <div className="profile-popup-actions">
                         <button
                           type="button"
                           className="popup-btn popup-btn-secondary"
-                          onClick={handlePhotoButtonClick}
+                          onClick={() => setCreateMode("menu")}
                         >
-                          Choose Photo
+                          Back
                         </button>
+                        <button
+                          type="button"
+                          className="popup-btn popup-btn-danger"
+                          onClick={handleCreateContact}
+                          disabled={!newContactName.trim()}
+                        >
+                          Create
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
 
+                {createMode === "group" && (
+                  <>
+                    <div className="create-popup-title">Create New Group</div>
+
+                    <div className="create-form">
+                      <label className="profile-input-group">
+                        <span className="profile-input-label">Group Name</span>
                         <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept="image/*"
-                          className="profile-file-input"
-                          onChange={handlePhotoChange}
+                          type="text"
+                          className="profile-input"
+                          value={newGroupName}
+                          onChange={(e) => setNewGroupName(e.target.value)}
+                          placeholder="Enter group name"
                         />
+                      </label>
+
+                      <label className="profile-input-group">
+                        <span className="profile-input-label">About Group</span>
+                        <input
+                          type="text"
+                          className="profile-input"
+                          value={newGroupAbout}
+                          onChange={(e) => setNewGroupAbout(e.target.value)}
+                          placeholder="Write something about the group"
+                        />
+                      </label>
+
+                      <div className="profile-popup-actions">
+                        <button
+                          type="button"
+                          className="popup-btn popup-btn-secondary"
+                          onClick={() => setCreateMode("menu")}
+                        >
+                          Back
+                        </button>
+                        <button
+                          type="button"
+                          className="popup-btn popup-btn-danger"
+                          onClick={handleCreateGroup}
+                          disabled={!newGroupName.trim()}
+                        >
+                          Create
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="sidebar-bottom">
+          <div className="sidebar-profile-wrapper">
+            <button
+              ref={profileBtnRef}
+              type="button"
+              className="sidebar-profile"
+              aria-label="profile"
+              title="Profile"
+              onClick={handleTogglePopup}
+            >
+              <img src={profile.photo} alt="User" className="sidebar-profile-img" />
+            </button>
+
+            {showProfilePopup && (
+              <div
+                ref={popupRef}
+                className="profile-popup profile-popup--expanded"
+                role="dialog"
+                aria-label="Profile options"
+              >
+                {!isEditingProfile && !isViewingProfile && !showLogoutConfirm && (
+                  <>
+                    <div className="profile-popup-header">
+                      <img src={profile.photo} alt="User" className="profile-popup-avatar" />
+                      <div className="profile-popup-user">
+                        <h4>{profile.name}</h4>
+                        <p>{profile.email}</p>
+                      </div>
+                    </div>
+
+                    <div className="profile-popup-menu">
+                      <button type="button" className="profile-menu-btn" onClick={handleViewProfile}>
+                        View Profile
+                      </button>
+
+                      <button type="button" className="profile-menu-btn" onClick={handleStartEdit}>
+                        Edit Name / Photo
+                      </button>
+
+                      <button
+                        type="button"
+                        className="profile-menu-btn profile-menu-btn-danger"
+                        onClick={handleOpenLogoutConfirm}
+                      >
+                        Logout
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {showLogoutConfirm && (
+                  <div className="logout-confirm-box">
+                    <div className="logout-confirm-icon">⎋</div>
+                    <h4 className="logout-confirm-title">Confirm Logout</h4>
+                    <p className="logout-confirm-text">
+                      Are you sure you want to logout from your account?
+                    </p>
+
+                    <div className="profile-popup-actions">
+                      <button
+                        type="button"
+                        className="popup-btn popup-btn-secondary"
+                        onClick={handleCancelLogout}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="popup-btn popup-btn-danger"
+                        onClick={handleConfirmLogout}
+                      >
+                        Logout
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {isViewingProfile && !showLogoutConfirm && (
+                  <>
+                    <div className="profile-popup-header">
+                      <img
+                        src={profile.photo}
+                        alt="User"
+                        className="profile-popup-avatar profile-popup-avatar-large"
+                      />
+                      <div className="profile-popup-user">
+                        <h4>{profile.name}</h4>
+                        <p>{profile.email}</p>
+                      </div>
+                    </div>
+
+                    <div className="profile-view-details">
+                      <div className="profile-detail-card">
+                        <span className="profile-detail-label">Phone</span>
+                        <span className="profile-detail-value">{profile.phone}</span>
+                      </div>
+
+                      <div className="profile-detail-card">
+                        <span className="profile-detail-label">Bio</span>
+                        <span className="profile-detail-value">{profile.bio}</span>
                       </div>
                     </div>
 
@@ -314,26 +520,89 @@ export default function Sidebar({ isChatOpen }) {
                       <button
                         type="button"
                         className="popup-btn popup-btn-secondary"
-                        onClick={handleCancelEdit}
+                        onClick={handleBackToMenu}
                       >
-                        Cancel
+                        Back
                       </button>
                       <button
                         type="button"
                         className="popup-btn popup-btn-danger"
-                        onClick={handleSaveProfile}
-                        disabled={!draftName.trim()}
+                        onClick={handleStartEdit}
                       >
-                        Save
+                        Edit Profile
                       </button>
                     </div>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+                  </>
+                )}
+
+                {isEditingProfile && !showLogoutConfirm && (
+                  <>
+                    <div className="profile-popup-header">
+                      <img src={draftPhoto} alt="Preview" className="profile-popup-avatar" />
+                      <div className="profile-popup-user">
+                        <h4>Edit Profile</h4>
+                        <p>Update your name and photo</p>
+                      </div>
+                    </div>
+
+                    <div className="profile-edit-form">
+                      <label className="profile-input-group">
+                        <span className="profile-input-label">Name</span>
+                        <input
+                          type="text"
+                          className="profile-input"
+                          value={draftName}
+                          onChange={(e) => setDraftName(e.target.value)}
+                          placeholder="Enter your name"
+                        />
+                      </label>
+
+                      <div className="profile-input-group">
+                        <span className="profile-input-label">Photo</span>
+                        <div className="profile-edit-actions">
+                          <button
+                            type="button"
+                            className="popup-btn popup-btn-secondary"
+                            onClick={handlePhotoButtonClick}
+                          >
+                            Choose Photo
+                          </button>
+
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="profile-file-input"
+                            onChange={handlePhotoChange}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="profile-popup-actions">
+                        <button
+                          type="button"
+                          className="popup-btn popup-btn-secondary"
+                          onClick={handleCancelEdit}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className="popup-btn popup-btn-danger"
+                          onClick={handleSaveProfile}
+                          disabled={!draftName.trim()}
+                        >
+                          Save
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }

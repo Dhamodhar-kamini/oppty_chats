@@ -82,7 +82,7 @@ const seed = [
     lastSeen: "",
     about: "Official team discussion group.",
     contact: "opptyteam@oppty.com",
-    isAdmin: true, // current user is admin for this group
+    isAdmin: true,
     messages: [
       {
         id: uid(),
@@ -156,13 +156,67 @@ function reducer(state, action) {
 
       const next = state.chats.map((chat) => {
         if (String(chat.id) !== String(action.chatId)) return chat;
-
-        // group: only admin can rename
         if (chat.kind === "group" && !chat.isAdmin) return chat;
-
         return { ...chat, name };
       });
 
+      saveChats(next);
+      return { chats: next };
+    }
+
+    case "ADD_CONTACT": {
+      const name = action.payload.name.trim();
+      if (!name) return state;
+
+      const newChat = {
+        id: uid(),
+        kind: "dm",
+        name,
+        avatarUrl:
+          action.payload.avatarUrl ||
+          `https://i.pravatar.cc/100?u=${encodeURIComponent(name + Date.now())}`,
+        isOnline: false,
+        lastSeen: "last seen recently",
+        about: "Hey there! I am using Oppty Chats.",
+        contact: action.payload.contact?.trim() || "Not available",
+        messages: [],
+      };
+
+      const next = [newChat, ...state.chats];
+      saveChats(next);
+      return { chats: next };
+    }
+
+    case "ADD_GROUP": {
+      const name = action.payload.name.trim();
+      if (!name) return state;
+
+      const newGroup = {
+        id: uid(),
+        kind: "group",
+        name,
+        avatarUrl:
+          action.payload.avatarUrl ||
+          `https://i.pravatar.cc/100?u=${encodeURIComponent("group_" + name + Date.now())}`,
+        isOnline: false,
+        lastSeen: "",
+        about: action.payload.about?.trim() || "New group created in Oppty Chats.",
+        contact: action.payload.contact?.trim() || "Not available",
+        isAdmin: true,
+        messages: [
+          {
+            id: uid(),
+            chatId: uid(),
+            sender: "them",
+            text: `Group "${name}" created successfully.`,
+            createdAt: Date.now(),
+          },
+        ],
+      };
+
+      newGroup.messages[0].chatId = newGroup.id;
+
+      const next = [newGroup, ...state.chats];
       saveChats(next);
       return { chats: next };
     }
@@ -189,6 +243,8 @@ export function ChatProvider({ children }) {
       sendMessage: (chatId, text) => dispatch({ type: "SEND", chatId, text }),
       updateChatName: (chatId, name) =>
         dispatch({ type: "UPDATE_CHAT_NAME", chatId, name }),
+      addContact: (payload) => dispatch({ type: "ADD_CONTACT", payload }),
+      addGroup: (payload) => dispatch({ type: "ADD_GROUP", payload }),
       resetChats: () => dispatch({ type: "RESET" }),
     }),
     [state.chats]
