@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { employeeDB } from "../../data/employees";
+import AppLoader from "../../components/common/AppLoader";
 import companyLogo from "../../assets/opptylogo.png";
 import "./EmployeeLogin.css";
 
@@ -438,24 +439,10 @@ export default function EmployeeLogin() {
       </div>
 
       {isLoggingIn && (
-  <div className="login-loader-overlay">
-    <div className="login-loader-box">
-      <div className="logo-spinner-wrap">
-        <div className="logo-ring-spinner">
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
-
-        <div className="logo-spinner-center">
-          <img src={companyLogo} alt="Company Logo" className="login-loader-logo" />
-        </div>
-      </div>
-
-      <h3 className="login-loader-title">Signing you in...</h3>
-      <p className="login-loader-text">Preparing your dashboard securely</p>
-    </div>
-  </div>
+  <AppLoader
+    title="Signing you in..."
+    subtitle="Preparing your dashboard securely"
+  />
 )}
     </>
   );

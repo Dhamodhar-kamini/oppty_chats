@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useChats } from "../../context/ChatContext.jsx";
 import profileImg from "../../assets/profiledp.jpeg";
+import AppLoader from "../common/AppLoader.jsx";
 import companyLogo from "../../assets/opptylogo.png";
 import "./Sidebar.css";
 
@@ -670,24 +671,10 @@ export default function Sidebar({ isChatOpen }) {
       </aside>
 
       {isLoggingOut && (
-  <div className="logout-loader-overlay">
-    <div className="logout-loader-box">
-      <div className="logo-spinner-wrap">
-        <div className="logo-ring-spinner">
-          <span></span>
-          <span></span>
-          <span></span>
-        </div>
-
-        <div className="logo-spinner-center">
-          <img src={companyLogo} alt="Company Logo" className="logout-loader-logo" />
-        </div>
-      </div>
-
-      <h3 className="logout-loader-title">Signing you out...</h3>
-      <p className="logout-loader-text">Securing your session and redirecting</p>
-    </div>
-  </div>
+  <AppLoader
+    title="Signing you out..."
+    subtitle="Securing your session and redirecting"
+  />
 )}
     </>
   );
