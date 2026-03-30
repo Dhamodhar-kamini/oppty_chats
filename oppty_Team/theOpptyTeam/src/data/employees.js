@@ -4,11 +4,13 @@ export const employeeDB = [
     email: "employee@oppty.com",
     password: "123456",
     name: "Employee One",
+    role: "employee",
   },
   {
     id: "emp-2",
     email: "admin@oppty.com",
     password: "admin123",
     name: "Admin User",
+    role: "admin",
   },
 ];

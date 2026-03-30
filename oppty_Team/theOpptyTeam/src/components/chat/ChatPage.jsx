@@ -38,7 +38,15 @@ export default function ChatPage() {
   const navigate = useNavigate();
   const isDesktop = useMediaQuery("(min-width: 900px)");
 
-  const { getChatById, sendMessage, updateChatName } = useChats();
+  const {
+    getChatById,
+    sendMessage,
+    updateChatName,
+    deleteChat,
+    toggleBlockChat,
+    isAdmin,
+  } = useChats();
+
   const chat = chatId ? getChatById(chatId) : null;
 
   const [text, setText] = useState("");
@@ -58,7 +66,8 @@ export default function ChatPage() {
   const messageRefs = useRef({});
 
   const canSend = text.trim().length > 0;
-  const canEditName = chat?.kind !== "group" || chat?.isAdmin === true;
+  const canEditName =
+    isAdmin || chat?.kind !== "group" || chat?.isAdmin === true;
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -151,7 +160,7 @@ export default function ChatPage() {
 
   const onSend = () => {
     const v = text.trim();
-    if (!v) return;
+    if (!v || chat.blocked) return;
     sendMessage(chat.id, v);
     setText("");
   };
@@ -219,6 +228,20 @@ export default function ChatPage() {
     setIsEditingName(false);
   };
 
+  const handleDeleteChat = () => {
+    if (!isAdmin) return;
+    deleteChat(chat.id);
+    setShowOptionsMenu(false);
+    setShowChatInfo(false);
+    navigate(chat.kind === "group" ? "/groups" : "/chats");
+  };
+
+  const handleToggleBlock = () => {
+    if (!isAdmin) return;
+    toggleBlockChat(chat.id);
+    setShowOptionsMenu(false);
+  };
+
   return (
     <div className="chat">
       <header className="chatHeader">
@@ -252,17 +275,33 @@ export default function ChatPage() {
           <div className="chatHeaderText">
             <div className="chatHeaderName">{chat.name}</div>
             <div className="chatHeaderMeta">
-              {chat.isOnline ? "online" : chat.lastSeen ? chat.lastSeen : "offline"}
+              {chat.blocked
+                ? "blocked by admin"
+                : chat.isOnline
+                ? "online"
+                : chat.lastSeen
+                ? chat.lastSeen
+                : "offline"}
             </div>
           </div>
         </button>
 
         <div className="chatHeaderActions" ref={optionsRef}>
-          <button className="iconBtn" aria-label="Search in chat" title="Search in chat" onClick={handleOpenSearch}>
+          <button
+            className="iconBtn"
+            aria-label="Search in chat"
+            title="Search in chat"
+            onClick={handleOpenSearch}
+          >
             ⌕
           </button>
 
-          <button className="iconBtn" aria-label="More options" title="More options" onClick={handleToggleOptions}>
+          <button
+            className="iconBtn"
+            aria-label="More options"
+            title="More options"
+            onClick={handleToggleOptions}
+          >
             ⋯
           </button>
 
@@ -271,13 +310,37 @@ export default function ChatPage() {
               <button type="button" className="chatOptionsItem" onClick={handleOpenChatInfo}>
                 View chat info
               </button>
+
               <button type="button" className="chatOptionsItem" onClick={handleCloseSearch}>
                 Clear search
               </button>
+
               <button type="button" className="chatOptionsItem" onClick={handleScrollToLatest}>
                 Scroll to latest
               </button>
-              <button type="button" className="chatOptionsItem" onClick={() => setShowOptionsMenu(false)}>
+
+              {isAdmin && (
+                <>
+                  <button type="button" className="chatOptionsItem" onClick={handleToggleBlock}>
+                    {chat.blocked ? "Unblock" : "Block"}{" "}
+                    {chat.kind === "group" ? "group" : "contact"}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="chatOptionsItem chatOptionsItemDanger"
+                    onClick={handleDeleteChat}
+                  >
+                    Delete {chat.kind === "group" ? "group" : "chat"}
+                  </button>
+                </>
+              )}
+
+              <button
+                type="button"
+                className="chatOptionsItem"
+                onClick={() => setShowOptionsMenu(false)}
+              >
                 Close
               </button>
             </div>
@@ -306,15 +369,32 @@ export default function ChatPage() {
                 : "0/0"}
             </span>
 
-            <button type="button" className="iconBtn" onClick={handlePrevMatch} disabled={!matchedMessages.length} title="Previous">
+            <button
+              type="button"
+              className="iconBtn"
+              onClick={handlePrevMatch}
+              disabled={!matchedMessages.length}
+              title="Previous"
+            >
               ↑
             </button>
 
-            <button type="button" className="iconBtn" onClick={handleNextMatch} disabled={!matchedMessages.length} title="Next">
+            <button
+              type="button"
+              className="iconBtn"
+              onClick={handleNextMatch}
+              disabled={!matchedMessages.length}
+              title="Next"
+            >
               ↓
             </button>
 
-            <button type="button" className="iconBtn" onClick={handleCloseSearch} title="Close search">
+            <button
+              type="button"
+              className="iconBtn"
+              onClick={handleCloseSearch}
+              title="Close search"
+            >
               ✕
             </button>
           </div>
@@ -349,7 +429,13 @@ export default function ChatPage() {
                 <>
                   <div className="chatInfoHeroName">{chat.name}</div>
                   <div className="chatInfoHeroStatus">
-                    {chat.isOnline ? "online" : chat.lastSeen ? chat.lastSeen : "offline"}
+                    {chat.blocked
+                      ? "Blocked by admin"
+                      : chat.isOnline
+                      ? "online"
+                      : chat.lastSeen
+                      ? chat.lastSeen
+                      : "offline"}
                   </div>
 
                   {canEditName && (
@@ -414,6 +500,27 @@ export default function ChatPage() {
                   {chat.contact || chat.email || "Not available"}
                 </strong>
               </div>
+
+              {isAdmin && (
+                <div className="chatInfoAdminActions">
+                  <button
+                    type="button"
+                    className="popup-btn popup-btn-secondary"
+                    onClick={handleToggleBlock}
+                  >
+                    {chat.blocked ? "Unblock" : "Block"}{" "}
+                    {chat.kind === "group" ? "Group" : "Contact"}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="popup-btn popup-btn-danger"
+                    onClick={handleDeleteChat}
+                  >
+                    Delete {chat.kind === "group" ? "Group" : "Chat"}
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="chatInfoDrawerActions">
@@ -478,8 +585,9 @@ export default function ChatPage() {
           className="composerInput"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Type a message"
+          placeholder={chat.blocked ? "This chat is blocked by admin" : "Type a message"}
           rows={1}
+          disabled={chat.blocked}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
@@ -494,7 +602,7 @@ export default function ChatPage() {
           onClick={onSend}
           aria-label="Send"
           title="Send"
-          disabled={!canSend}
+          disabled={!canSend || chat.blocked}
         >
           <svg className="sendIcon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
             <path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />

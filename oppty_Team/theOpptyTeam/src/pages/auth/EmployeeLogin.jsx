@@ -20,6 +20,7 @@ export default function EmployeeLogin() {
   });
 
   const [loginError, setLoginError] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [showForgotPopup, setShowForgotPopup] = useState(false);
 
   const [forgotStep, setForgotStep] = useState(FORGOT_STEPS.EMAIL);
@@ -69,10 +70,15 @@ export default function EmployeeLogin() {
         employeeId: employee.id,
         email: employee.email,
         name: employee.name,
+        role: employee.role,
       })
     );
 
-    navigate("/chats");
+    setIsLoggingIn(true);
+
+    setTimeout(() => {
+      navigate("/chats");
+    }, 1800);
   };
 
   const openForgotPopup = () => {
@@ -184,249 +190,273 @@ export default function EmployeeLogin() {
   };
 
   return (
-    <div className="employee-login-page">
-      <div className="employee-login-card">
-        <div className="employee-login-header">
-          <img src={companyLogo} alt="Company Logo" className="company-login-logo" />
-          <h1>Oppty Connect</h1>
-          <p>Login to access your chat dashboard</p>
-        </div>
-
-        <form className="employee-login-form" onSubmit={handleLoginSubmit}>
-          <div className="auth-input-group">
-            <label>Email</label>
-            <input
-              type="email"
-              name="email"
-              value={loginForm.email}
-              onChange={handleLoginChange}
-              placeholder="Enter your email"
-            />
+    <>
+      <div className="employee-login-page">
+        <div className="employee-login-card">
+          <div className="employee-login-header">
+            <img src={companyLogo} alt="Company Logo" className="company-login-logo" />
+            <h1>Oppty Connect</h1>
+            <p>Login to access your chat dashboard</p>
           </div>
 
-          <div className="auth-input-group">
-            <label>Password</label>
-            <input
-              type="password"
-              name="password"
-              value={loginForm.password}
-              onChange={handleLoginChange}
-              placeholder="Enter your password"
-            />
-          </div>
-
-          {loginError && <div className="auth-error-msg">{loginError}</div>}
-
-          <button type="submit" className="auth-primary-btn">
-            Login
-          </button>
-
-          <button
-            type="button"
-            className="forgot-password-btn"
-            onClick={openForgotPopup}
-          >
-            Forgot Password?
-          </button>
-        </form>
-      </div>
-
-      {showForgotPopup && (
-        <div className="auth-popup-overlay" onClick={closeForgotPopup}>
-          <div
-            className="auth-popup-card"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="auth-popup-top">
-              <h2>Forgot Password</h2>
-              <button
-                type="button"
-                className="auth-close-btn"
-                onClick={closeForgotPopup}
-              >
-                ✕
-              </button>
+          <form className="employee-login-form" onSubmit={handleLoginSubmit}>
+            <div className="auth-input-group">
+              <label>Email</label>
+              <input
+                type="email"
+                name="email"
+                value={loginForm.email}
+                onChange={handleLoginChange}
+                placeholder="Enter your email"
+              />
             </div>
 
-            {forgotStep === FORGOT_STEPS.EMAIL && (
-              <div className="auth-popup-body">
-                <p className="auth-popup-desc">
-                  Enter your employee email to verify your account.
-                </p>
+            <div className="auth-input-group">
+              <label>Password</label>
+              <input
+                type="password"
+                name="password"
+                value={loginForm.password}
+                onChange={handleLoginChange}
+                placeholder="Enter your password"
+              />
+            </div>
 
-                <div className="auth-input-group">
-                  <label>Email Verification</label>
-                  <input
-                    type="email"
-                    value={forgotEmail}
-                    onChange={(e) => {
-                      setForgotEmail(e.target.value);
-                      setForgotError("");
-                      setForgotSuccessMsg("");
-                    }}
-                    placeholder="Enter registered email"
-                  />
-                </div>
+            {loginError && <div className="auth-error-msg">{loginError}</div>}
 
-                {forgotError && <div className="auth-error-msg">{forgotError}</div>}
-                {forgotSuccessMsg && <div className="auth-success-msg">{forgotSuccessMsg}</div>}
+            <button type="submit" className="auth-primary-btn" disabled={isLoggingIn}>
+              Login
+            </button>
 
-                <div className="auth-popup-actions">
-                  <button
-                    type="button"
-                    className="auth-secondary-btn"
-                    onClick={closeForgotPopup}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="auth-primary-btn"
-                    onClick={handleVerifyEmail}
-                  >
-                    Verify Email
-                  </button>
-                </div>
-              </div>
-            )}
+            <button
+              type="button"
+              className="forgot-password-btn"
+              onClick={openForgotPopup}
+              disabled={isLoggingIn}
+            >
+              Forgot Password?
+            </button>
+          </form>
+        </div>
 
-            {forgotStep === FORGOT_STEPS.OTP && (
-              <div className="auth-popup-body">
-                <p className="auth-popup-desc">
-                  Enter the OTP sent to <strong>{forgotEmail}</strong>
-                </p>
-
-                <div className="auth-input-group">
-                  <label>OTP Verification</label>
-                  <input
-                    type="text"
-                    maxLength={6}
-                    value={otpValue}
-                    onChange={(e) => {
-                      setOtpValue(e.target.value);
-                      setForgotError("");
-                      setForgotSuccessMsg("");
-                    }}
-                    placeholder="Enter 6-digit OTP"
-                  />
-                </div>
-
+        {showForgotPopup && (
+          <div className="auth-popup-overlay" onClick={closeForgotPopup}>
+            <div
+              className="auth-popup-card"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="auth-popup-top">
+                <h2>Forgot Password</h2>
                 <button
                   type="button"
-                  className="resend-otp-btn"
-                  onClick={handleResendOtp}
+                  className="auth-close-btn"
+                  onClick={closeForgotPopup}
                 >
-                  Resend OTP
+                  ✕
                 </button>
-
-                {forgotError && <div className="auth-error-msg">{forgotError}</div>}
-                {forgotSuccessMsg && <div className="auth-success-msg">{forgotSuccessMsg}</div>}
-
-                <div className="auth-popup-actions">
-                  <button
-                    type="button"
-                    className="auth-secondary-btn"
-                    onClick={() => {
-                      setForgotStep(FORGOT_STEPS.EMAIL);
-                      setForgotError("");
-                      setForgotSuccessMsg("");
-                    }}
-                  >
-                    Back
-                  </button>
-                  <button
-                    type="button"
-                    className="auth-primary-btn"
-                    onClick={handleVerifyOtp}
-                  >
-                    Verify OTP
-                  </button>
-                </div>
               </div>
-            )}
 
-            {forgotStep === FORGOT_STEPS.RESET && (
-              <div className="auth-popup-body">
-                <p className="auth-popup-desc">
-                  Set a new password for your account.
-                </p>
+              {forgotStep === FORGOT_STEPS.EMAIL && (
+                <div className="auth-popup-body">
+                  <p className="auth-popup-desc">
+                    Enter your employee email to verify your account.
+                  </p>
 
-                <div className="auth-input-group">
-                  <label>New Password</label>
-                  <input
-                    type="password"
-                    value={resetForm.password}
-                    onChange={(e) => {
-                      setResetForm((prev) => ({
-                        ...prev,
-                        password: e.target.value,
-                      }));
-                      setForgotError("");
-                    }}
-                    placeholder="Enter new password"
-                  />
+                  <div className="auth-input-group">
+                    <label>Email Verification</label>
+                    <input
+                      type="email"
+                      value={forgotEmail}
+                      onChange={(e) => {
+                        setForgotEmail(e.target.value);
+                        setForgotError("");
+                        setForgotSuccessMsg("");
+                      }}
+                      placeholder="Enter registered email"
+                    />
+                  </div>
+
+                  {forgotError && <div className="auth-error-msg">{forgotError}</div>}
+                  {forgotSuccessMsg && <div className="auth-success-msg">{forgotSuccessMsg}</div>}
+
+                  <div className="auth-popup-actions">
+                    <button
+                      type="button"
+                      className="auth-secondary-btn"
+                      onClick={closeForgotPopup}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="auth-primary-btn"
+                      onClick={handleVerifyEmail}
+                    >
+                      Verify Email
+                    </button>
+                  </div>
                 </div>
+              )}
 
-                <div className="auth-input-group">
-                  <label>Confirm Password</label>
-                  <input
-                    type="password"
-                    value={resetForm.confirmPassword}
-                    onChange={(e) => {
-                      setResetForm((prev) => ({
-                        ...prev,
-                        confirmPassword: e.target.value,
-                      }));
-                      setForgotError("");
-                    }}
-                    placeholder="Confirm new password"
-                  />
-                </div>
+              {forgotStep === FORGOT_STEPS.OTP && (
+                <div className="auth-popup-body">
+                  <p className="auth-popup-desc">
+                    Enter the OTP sent to <strong>{forgotEmail}</strong>
+                  </p>
 
-                {forgotError && <div className="auth-error-msg">{forgotError}</div>}
+                  <div className="auth-input-group">
+                    <label>OTP Verification</label>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={otpValue}
+                      onChange={(e) => {
+                        setOtpValue(e.target.value);
+                        setForgotError("");
+                        setForgotSuccessMsg("");
+                      }}
+                      placeholder="Enter 6-digit OTP"
+                    />
+                  </div>
 
-                <div className="auth-popup-actions">
                   <button
                     type="button"
-                    className="auth-secondary-btn"
-                    onClick={() => {
-                      setForgotStep(FORGOT_STEPS.OTP);
-                      setForgotError("");
-                    }}
+                    className="resend-otp-btn"
+                    onClick={handleResendOtp}
                   >
-                    Back
+                    Resend OTP
                   </button>
-                  <button
-                    type="button"
-                    className="auth-primary-btn"
-                    onClick={handleResetPassword}
-                  >
-                    Set Password
-                  </button>
-                </div>
-              </div>
-            )}
 
-            {forgotStep === FORGOT_STEPS.SUCCESS && (
-              <div className="auth-popup-body auth-success-body">
-                <div className="auth-success-icon">✓</div>
-                <h3>Password Updated Successfully</h3>
-                <p>Your password has been reset. Please login again.</p>
+                  {forgotError && <div className="auth-error-msg">{forgotError}</div>}
+                  {forgotSuccessMsg && <div className="auth-success-msg">{forgotSuccessMsg}</div>}
 
-                <div className="auth-popup-actions auth-popup-actions-center">
-                  <button
-                    type="button"
-                    className="auth-primary-btn"
-                    onClick={closeForgotPopup}
-                  >
-                    Back to Login
-                  </button>
+                  <div className="auth-popup-actions">
+                    <button
+                      type="button"
+                      className="auth-secondary-btn"
+                      onClick={() => {
+                        setForgotStep(FORGOT_STEPS.EMAIL);
+                        setForgotError("");
+                        setForgotSuccessMsg("");
+                      }}
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      className="auth-primary-btn"
+                      onClick={handleVerifyOtp}
+                    >
+                      Verify OTP
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+
+              {forgotStep === FORGOT_STEPS.RESET && (
+                <div className="auth-popup-body">
+                  <p className="auth-popup-desc">
+                    Set a new password for your account.
+                  </p>
+
+                  <div className="auth-input-group">
+                    <label>New Password</label>
+                    <input
+                      type="password"
+                      value={resetForm.password}
+                      onChange={(e) => {
+                        setResetForm((prev) => ({
+                          ...prev,
+                          password: e.target.value,
+                        }));
+                        setForgotError("");
+                      }}
+                      placeholder="Enter new password"
+                    />
+                  </div>
+
+                  <div className="auth-input-group">
+                    <label>Confirm Password</label>
+                    <input
+                      type="password"
+                      value={resetForm.confirmPassword}
+                      onChange={(e) => {
+                        setResetForm((prev) => ({
+                          ...prev,
+                          confirmPassword: e.target.value,
+                        }));
+                        setForgotError("");
+                      }}
+                      placeholder="Confirm new password"
+                    />
+                  </div>
+
+                  {forgotError && <div className="auth-error-msg">{forgotError}</div>}
+
+                  <div className="auth-popup-actions">
+                    <button
+                      type="button"
+                      className="auth-secondary-btn"
+                      onClick={() => {
+                        setForgotStep(FORGOT_STEPS.OTP);
+                        setForgotError("");
+                      }}
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="button"
+                      className="auth-primary-btn"
+                      onClick={handleResetPassword}
+                    >
+                      Set Password
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {forgotStep === FORGOT_STEPS.SUCCESS && (
+                <div className="auth-popup-body auth-success-body">
+                  <div className="auth-success-icon">✓</div>
+                  <h3>Password Updated Successfully</h3>
+                  <p>Your password has been reset. Please login again.</p>
+
+                  <div className="auth-popup-actions auth-popup-actions-center">
+                    <button
+                      type="button"
+                      className="auth-primary-btn"
+                      onClick={closeForgotPopup}
+                    >
+                      Back to Login
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
+        )}
+      </div>
+
+      {isLoggingIn && (
+  <div className="login-loader-overlay">
+    <div className="login-loader-box">
+      <div className="logo-spinner-wrap">
+        <div className="logo-ring-spinner">
+          <span></span>
+          <span></span>
+          <span></span>
         </div>
-      )}
+
+        <div className="logo-spinner-center">
+          <img src={companyLogo} alt="Company Logo" className="login-loader-logo" />
+        </div>
+      </div>
+
+      <h3 className="login-loader-title">Signing you in...</h3>
+      <p className="login-loader-text">Preparing your dashboard securely</p>
     </div>
+  </div>
+)}
+    </>
   );
 }

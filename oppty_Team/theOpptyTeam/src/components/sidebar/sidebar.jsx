@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useChats } from "../../context/ChatContext.jsx";
 import profileImg from "../../assets/profiledp.jpeg";
+import companyLogo from "../../assets/opptylogo.png";
 import "./Sidebar.css";
 
 function ChatsIcon() {
@@ -42,9 +43,21 @@ const ICON_BY_ID = {
   groups: <GroupsIcon />,
 };
 
+function getAuthUser() {
+  try {
+    const raw = localStorage.getItem("employeeAuth");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function Sidebar({ isChatOpen }) {
   const navigate = useNavigate();
   const { addContact, addGroup } = useChats();
+
+  const authUser = getAuthUser();
+  const isAdminUser = authUser?.role === "admin";
 
   const [showProfilePopup, setShowProfilePopup] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -54,6 +67,7 @@ export default function Sidebar({ isChatOpen }) {
   const [createMode, setCreateMode] = useState("menu");
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const [newContactName, setNewContactName] = useState("");
   const [newContactEmail, setNewContactEmail] = useState("");
@@ -62,10 +76,12 @@ export default function Sidebar({ isChatOpen }) {
   const [newGroupAbout, setNewGroupAbout] = useState("");
 
   const [profile, setProfile] = useState({
-    name: "Your Name",
-    email: "yourmail@example.com",
+    name: authUser?.name || "Your Name",
+    email: authUser?.email || "yourmail@example.com",
     phone: "+91 9876543210",
-    bio: "Passionate about building beautiful chat experiences.",
+    bio: isAdminUser
+      ? "Administrator access enabled for complete dashboard control."
+      : "Passionate about building beautiful chat experiences.",
     photo: profileImg,
   });
 
@@ -83,6 +99,18 @@ export default function Sidebar({ isChatOpen }) {
     { id: "chats", to: "/chats", badge: "99+" },
     { id: "groups", to: "/groups", dot: true },
   ];
+
+  const saveAuthUser = (updatedFields) => {
+    const current = getAuthUser();
+    if (!current) return;
+
+    const updated = {
+      ...current,
+      ...updatedFields,
+    };
+
+    localStorage.setItem("employeeAuth", JSON.stringify(updated));
+  };
 
   const handleTogglePopup = () => {
     setShowProfilePopup((prev) => !prev);
@@ -130,11 +158,17 @@ export default function Sidebar({ isChatOpen }) {
     const trimmedName = draftName.trim();
     if (!trimmedName) return;
 
-    setProfile((prev) => ({
-      ...prev,
+    const updatedProfile = {
+      ...profile,
       name: trimmedName,
       photo: draftPhoto,
-    }));
+    };
+
+    setProfile(updatedProfile);
+    saveAuthUser({
+      name: trimmedName,
+      photo: draftPhoto,
+    });
 
     setIsEditingProfile(false);
   };
@@ -148,10 +182,14 @@ export default function Sidebar({ isChatOpen }) {
   };
 
   const handleConfirmLogout = () => {
-    localStorage.removeItem("employeeAuth");
+    setIsLoggingOut(true);
     setShowLogoutConfirm(false);
     setShowProfilePopup(false);
-    navigate("/login");
+
+    setTimeout(() => {
+      localStorage.removeItem("employeeAuth");
+      navigate("/login");
+    }, 1600);
   };
 
   const handlePhotoButtonClick = () => {
@@ -166,6 +204,7 @@ export default function Sidebar({ isChatOpen }) {
   };
 
   const handleToggleCreatePopup = () => {
+    if (!isAdminUser) return;
     setShowCreatePopup((prev) => !prev);
     setShowProfilePopup(false);
     setShowLogoutConfirm(false);
@@ -182,6 +221,8 @@ export default function Sidebar({ isChatOpen }) {
   };
 
   const handleCreateContact = () => {
+    if (!isAdminUser) return;
+
     const name = newContactName.trim();
     if (!name) return;
 
@@ -195,6 +236,8 @@ export default function Sidebar({ isChatOpen }) {
   };
 
   const handleCreateGroup = () => {
+    if (!isAdminUser) return;
+
     const name = newGroupName.trim();
     if (!name) return;
 
@@ -223,13 +266,8 @@ export default function Sidebar({ isChatOpen }) {
         createBtnRef.current &&
         !createBtnRef.current.contains(event.target);
 
-      if (clickedOutsideProfile) {
-        handleClosePopup();
-      }
-
-      if (clickedOutsideCreate) {
-        handleCloseCreatePopup();
-      }
+      if (clickedOutsideProfile) handleClosePopup();
+      if (clickedOutsideCreate) handleCloseCreatePopup();
     };
 
     const handleEscape = (event) => {
@@ -266,151 +304,155 @@ export default function Sidebar({ isChatOpen }) {
             </NavLink>
           ))}
 
-          <div className="sidebar-divider" />
+          {isAdminUser && (
+            <>
+              <div className="sidebar-divider" />
 
-          <div className="sidebar-create-wrapper">
-            <button
-              ref={createBtnRef}
-              type="button"
-              className="sidebar-item sidebar-create-btn"
-              aria-label="New chat"
-              title="New chat"
-              onClick={handleToggleCreatePopup}
-            >
-              <span className="sidebar-icon">
-                <NewChatIcon />
-              </span>
-            </button>
+              <div className="sidebar-create-wrapper">
+                <button
+                  ref={createBtnRef}
+                  type="button"
+                  className="sidebar-item sidebar-create-btn"
+                  aria-label="New chat"
+                  title="New chat"
+                  onClick={handleToggleCreatePopup}
+                >
+                  <span className="sidebar-icon">
+                    <NewChatIcon />
+                  </span>
+                </button>
 
-            {showCreatePopup && (
-              <div
-                ref={createPopupRef}
-                className="create-popup"
-                role="dialog"
-                aria-label="Create new chat or group"
-              >
-                {createMode === "menu" && (
-                  <>
-                    <div className="create-popup-title">Start something new</div>
+                {showCreatePopup && (
+                  <div
+                    ref={createPopupRef}
+                    className="create-popup"
+                    role="dialog"
+                    aria-label="Create new chat or group"
+                  >
+                    {createMode === "menu" && (
+                      <>
+                        <div className="create-popup-title">Start something new</div>
 
-                    <div className="create-popup-menu">
-                      <button
-                        type="button"
-                        className="create-menu-btn"
-                        onClick={() => setCreateMode("contact")}
-                      >
-                        Add New Contact
-                      </button>
+                        <div className="create-popup-menu">
+                          <button
+                            type="button"
+                            className="create-menu-btn"
+                            onClick={() => setCreateMode("contact")}
+                          >
+                            Add New Contact
+                          </button>
 
-                      <button
-                        type="button"
-                        className="create-menu-btn"
-                        onClick={() => setCreateMode("group")}
-                      >
-                        Create New Group
-                      </button>
-                    </div>
-                  </>
-                )}
+                          <button
+                            type="button"
+                            className="create-menu-btn"
+                            onClick={() => setCreateMode("group")}
+                          >
+                            Create New Group
+                          </button>
+                        </div>
+                      </>
+                    )}
 
-                {createMode === "contact" && (
-                  <>
-                    <div className="create-popup-title">Add New Contact</div>
+                    {createMode === "contact" && (
+                      <>
+                        <div className="create-popup-title">Add New Contact</div>
 
-                    <div className="create-form">
-                      <label className="profile-input-group">
-                        <span className="profile-input-label">Name</span>
-                        <input
-                          type="text"
-                          className="profile-input"
-                          value={newContactName}
-                          onChange={(e) => setNewContactName(e.target.value)}
-                          placeholder="Enter contact name"
-                        />
-                      </label>
+                        <div className="create-form">
+                          <label className="profile-input-group">
+                            <span className="profile-input-label">Name</span>
+                            <input
+                              type="text"
+                              className="profile-input"
+                              value={newContactName}
+                              onChange={(e) => setNewContactName(e.target.value)}
+                              placeholder="Enter contact name"
+                            />
+                          </label>
 
-                      <label className="profile-input-group">
-                        <span className="profile-input-label">Email / Contact</span>
-                        <input
-                          type="text"
-                          className="profile-input"
-                          value={newContactEmail}
-                          onChange={(e) => setNewContactEmail(e.target.value)}
-                          placeholder="Enter email or phone"
-                        />
-                      </label>
+                          <label className="profile-input-group">
+                            <span className="profile-input-label">Email / Contact</span>
+                            <input
+                              type="text"
+                              className="profile-input"
+                              value={newContactEmail}
+                              onChange={(e) => setNewContactEmail(e.target.value)}
+                              placeholder="Enter email or phone"
+                            />
+                          </label>
 
-                      <div className="profile-popup-actions">
-                        <button
-                          type="button"
-                          className="popup-btn popup-btn-secondary"
-                          onClick={() => setCreateMode("menu")}
-                        >
-                          Back
-                        </button>
-                        <button
-                          type="button"
-                          className="popup-btn popup-btn-danger"
-                          onClick={handleCreateContact}
-                          disabled={!newContactName.trim()}
-                        >
-                          Create
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
+                          <div className="profile-popup-actions">
+                            <button
+                              type="button"
+                              className="popup-btn popup-btn-secondary"
+                              onClick={() => setCreateMode("menu")}
+                            >
+                              Back
+                            </button>
+                            <button
+                              type="button"
+                              className="popup-btn popup-btn-danger"
+                              onClick={handleCreateContact}
+                              disabled={!newContactName.trim()}
+                            >
+                              Create
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
 
-                {createMode === "group" && (
-                  <>
-                    <div className="create-popup-title">Create New Group</div>
+                    {createMode === "group" && (
+                      <>
+                        <div className="create-popup-title">Create New Group</div>
 
-                    <div className="create-form">
-                      <label className="profile-input-group">
-                        <span className="profile-input-label">Group Name</span>
-                        <input
-                          type="text"
-                          className="profile-input"
-                          value={newGroupName}
-                          onChange={(e) => setNewGroupName(e.target.value)}
-                          placeholder="Enter group name"
-                        />
-                      </label>
+                        <div className="create-form">
+                          <label className="profile-input-group">
+                            <span className="profile-input-label">Group Name</span>
+                            <input
+                              type="text"
+                              className="profile-input"
+                              value={newGroupName}
+                              onChange={(e) => setNewGroupName(e.target.value)}
+                              placeholder="Enter group name"
+                            />
+                          </label>
 
-                      <label className="profile-input-group">
-                        <span className="profile-input-label">About Group</span>
-                        <input
-                          type="text"
-                          className="profile-input"
-                          value={newGroupAbout}
-                          onChange={(e) => setNewGroupAbout(e.target.value)}
-                          placeholder="Write something about the group"
-                        />
-                      </label>
+                          <label className="profile-input-group">
+                            <span className="profile-input-label">About Group</span>
+                            <input
+                              type="text"
+                              className="profile-input"
+                              value={newGroupAbout}
+                              onChange={(e) => setNewGroupAbout(e.target.value)}
+                              placeholder="Write something about the group"
+                            />
+                          </label>
 
-                      <div className="profile-popup-actions">
-                        <button
-                          type="button"
-                          className="popup-btn popup-btn-secondary"
-                          onClick={() => setCreateMode("menu")}
-                        >
-                          Back
-                        </button>
-                        <button
-                          type="button"
-                          className="popup-btn popup-btn-danger"
-                          onClick={handleCreateGroup}
-                          disabled={!newGroupName.trim()}
-                        >
-                          Create
-                        </button>
-                      </div>
-                    </div>
-                  </>
+                          <div className="profile-popup-actions">
+                            <button
+                              type="button"
+                              className="popup-btn popup-btn-secondary"
+                              onClick={() => setCreateMode("menu")}
+                            >
+                              Back
+                            </button>
+                            <button
+                              type="button"
+                              className="popup-btn popup-btn-danger"
+                              onClick={handleCreateGroup}
+                              disabled={!newGroupName.trim()}
+                            >
+                              Create
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
+            </>
+          )}
         </div>
 
         <div className="sidebar-bottom">
@@ -418,12 +460,16 @@ export default function Sidebar({ isChatOpen }) {
             <button
               ref={profileBtnRef}
               type="button"
-              className="sidebar-profile"
+              className={`sidebar-profile ${isAdminUser ? "sidebar-admin-badge" : ""}`}
               aria-label="profile"
-              title="Profile"
+              title={isAdminUser ? "Admin Profile" : "Profile"}
               onClick={handleTogglePopup}
             >
-              <img src={profile.photo} alt="User" className="sidebar-profile-img" />
+              {isAdminUser ? (
+                <span className="sidebar-admin-text">AD</span>
+              ) : (
+                <img src={profile.photo} alt="User" className="sidebar-profile-img" />
+              )}
             </button>
 
             {showProfilePopup && (
@@ -436,9 +482,14 @@ export default function Sidebar({ isChatOpen }) {
                 {!isEditingProfile && !isViewingProfile && !showLogoutConfirm && (
                   <>
                     <div className="profile-popup-header">
-                      <img src={profile.photo} alt="User" className="profile-popup-avatar" />
+                      {isAdminUser ? (
+                        <div className="profile-popup-admin-avatar">AD</div>
+                      ) : (
+                        <img src={profile.photo} alt="User" className="profile-popup-avatar" />
+                      )}
+
                       <div className="profile-popup-user">
-                        <h4>{profile.name}</h4>
+                        <h4>{isAdminUser ? `${profile.name} (Admin)` : profile.name}</h4>
                         <p>{profile.email}</p>
                       </div>
                     </div>
@@ -493,13 +544,20 @@ export default function Sidebar({ isChatOpen }) {
                 {isViewingProfile && !showLogoutConfirm && (
                   <>
                     <div className="profile-popup-header">
-                      <img
-                        src={profile.photo}
-                        alt="User"
-                        className="profile-popup-avatar profile-popup-avatar-large"
-                      />
+                      {isAdminUser ? (
+                        <div className="profile-popup-admin-avatar profile-popup-admin-avatar-large">
+                          AD
+                        </div>
+                      ) : (
+                        <img
+                          src={profile.photo}
+                          alt="User"
+                          className="profile-popup-avatar profile-popup-avatar-large"
+                        />
+                      )}
+
                       <div className="profile-popup-user">
-                        <h4>{profile.name}</h4>
+                        <h4>{isAdminUser ? `${profile.name} (Admin)` : profile.name}</h4>
                         <p>{profile.email}</p>
                       </div>
                     </div>
@@ -538,7 +596,12 @@ export default function Sidebar({ isChatOpen }) {
                 {isEditingProfile && !showLogoutConfirm && (
                   <>
                     <div className="profile-popup-header">
-                      <img src={draftPhoto} alt="Preview" className="profile-popup-avatar" />
+                      {isAdminUser ? (
+                        <div className="profile-popup-admin-avatar">AD</div>
+                      ) : (
+                        <img src={draftPhoto} alt="Preview" className="profile-popup-avatar" />
+                      )}
+
                       <div className="profile-popup-user">
                         <h4>Edit Profile</h4>
                         <p>Update your name and photo</p>
@@ -557,26 +620,28 @@ export default function Sidebar({ isChatOpen }) {
                         />
                       </label>
 
-                      <div className="profile-input-group">
-                        <span className="profile-input-label">Photo</span>
-                        <div className="profile-edit-actions">
-                          <button
-                            type="button"
-                            className="popup-btn popup-btn-secondary"
-                            onClick={handlePhotoButtonClick}
-                          >
-                            Choose Photo
-                          </button>
+                      {!isAdminUser && (
+                        <div className="profile-input-group">
+                          <span className="profile-input-label">Photo</span>
+                          <div className="profile-edit-actions">
+                            <button
+                              type="button"
+                              className="popup-btn popup-btn-secondary"
+                              onClick={handlePhotoButtonClick}
+                            >
+                              Choose Photo
+                            </button>
 
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept="image/*"
-                            className="profile-file-input"
-                            onChange={handlePhotoChange}
-                          />
+                            <input
+                              ref={fileInputRef}
+                              type="file"
+                              accept="image/*"
+                              className="profile-file-input"
+                              onChange={handlePhotoChange}
+                            />
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       <div className="profile-popup-actions">
                         <button
@@ -603,6 +668,27 @@ export default function Sidebar({ isChatOpen }) {
           </div>
         </div>
       </aside>
+
+      {isLoggingOut && (
+  <div className="logout-loader-overlay">
+    <div className="logout-loader-box">
+      <div className="logo-spinner-wrap">
+        <div className="logo-ring-spinner">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+
+        <div className="logo-spinner-center">
+          <img src={companyLogo} alt="Company Logo" className="logout-loader-logo" />
+        </div>
+      </div>
+
+      <h3 className="logout-loader-title">Signing you out...</h3>
+      <p className="logout-loader-text">Securing your session and redirecting</p>
+    </div>
+  </div>
+)}
     </>
   );
 }

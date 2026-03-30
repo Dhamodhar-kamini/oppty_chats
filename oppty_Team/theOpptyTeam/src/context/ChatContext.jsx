@@ -1,5 +1,6 @@
 // @refresh reset
 import React, { createContext, useContext, useEffect, useMemo, useReducer } from "react";
+import { getAuthUser } from "../utils/auth.js";
 
 const STORAGE_KEY = "opty_chat_v1";
 
@@ -30,6 +31,7 @@ const seed = [
     lastSeen: "",
     about: "Hey there! I am using Oppty Chats.",
     contact: "elena@oppty.com",
+    blocked: false,
     messages: [
       {
         id: uid(),
@@ -56,6 +58,7 @@ const seed = [
     lastSeen: "last seen today at 10:21",
     about: "Hey there! I am using Oppty Chats.",
     contact: "Not available",
+    blocked: false,
     messages: [
       {
         id: uid(),
@@ -83,6 +86,7 @@ const seed = [
     about: "Official team discussion group.",
     contact: "opptyteam@oppty.com",
     isAdmin: true,
+    blocked: false,
     messages: [
       {
         id: uid(),
@@ -104,6 +108,7 @@ function normalizeAndMerge(persisted) {
     about: c.about ?? "Hey there! I am using Oppty Chats.",
     contact: c.contact ?? "Not available",
     isAdmin: c.isAdmin ?? false,
+    blocked: c.blocked ?? false,
     messages: Array.isArray(c.messages) ? c.messages : [],
   }));
 
@@ -117,6 +122,11 @@ function normalizeAndMerge(persisted) {
 
 const ChatContext = createContext(null);
 
+function isSystemAdmin() {
+  const auth = getAuthUser();
+  return auth?.role === "admin";
+}
+
 function reducer(state, action) {
   switch (action.type) {
     case "INIT":
@@ -129,6 +139,9 @@ function reducer(state, action) {
     case "SEND": {
       const text = action.text.trim();
       if (!text) return state;
+
+      const target = state.chats.find((c) => c.id === action.chatId);
+      if (!target || target.blocked) return state;
 
       const msg = {
         id: uid(),
@@ -156,6 +169,11 @@ function reducer(state, action) {
 
       const next = state.chats.map((chat) => {
         if (String(chat.id) !== String(action.chatId)) return chat;
+
+        if (isSystemAdmin()) {
+          return { ...chat, name };
+        }
+
         if (chat.kind === "group" && !chat.isAdmin) return chat;
         return { ...chat, name };
       });
@@ -179,6 +197,7 @@ function reducer(state, action) {
         lastSeen: "last seen recently",
         about: "Hey there! I am using Oppty Chats.",
         contact: action.payload.contact?.trim() || "Not available",
+        blocked: false,
         messages: [],
       };
 
@@ -203,20 +222,32 @@ function reducer(state, action) {
         about: action.payload.about?.trim() || "New group created in Oppty Chats.",
         contact: action.payload.contact?.trim() || "Not available",
         isAdmin: true,
-        messages: [
-          {
-            id: uid(),
-            chatId: uid(),
-            sender: "them",
-            text: `Group "${name}" created successfully.`,
-            createdAt: Date.now(),
-          },
-        ],
+        blocked: false,
+        messages: [],
       };
 
-      newGroup.messages[0].chatId = newGroup.id;
-
       const next = [newGroup, ...state.chats];
+      saveChats(next);
+      return { chats: next };
+    }
+
+    case "DELETE_CHAT": {
+      if (!isSystemAdmin()) return state;
+
+      const next = state.chats.filter((chat) => String(chat.id) !== String(action.chatId));
+      saveChats(next);
+      return { chats: next };
+    }
+
+    case "TOGGLE_BLOCK_CHAT": {
+      if (!isSystemAdmin()) return state;
+
+      const next = state.chats.map((chat) =>
+        String(chat.id) === String(action.chatId)
+          ? { ...chat, blocked: !chat.blocked }
+          : chat
+      );
+
       saveChats(next);
       return { chats: next };
     }
@@ -245,7 +276,10 @@ export function ChatProvider({ children }) {
         dispatch({ type: "UPDATE_CHAT_NAME", chatId, name }),
       addContact: (payload) => dispatch({ type: "ADD_CONTACT", payload }),
       addGroup: (payload) => dispatch({ type: "ADD_GROUP", payload }),
+      deleteChat: (chatId) => dispatch({ type: "DELETE_CHAT", chatId }),
+      toggleBlockChat: (chatId) => dispatch({ type: "TOGGLE_BLOCK_CHAT", chatId }),
       resetChats: () => dispatch({ type: "RESET" }),
+      isAdmin: isSystemAdmin(),
     }),
     [state.chats]
   );

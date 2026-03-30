@@ -818,3 +818,19 @@
   gap: 10px;
   margin-top: 12px;
 }
+
+
+.chatOptionsItemDanger {
+  color: #d93025;
+}
+
+.chatOptionsItemDanger:hover {
+  background: #fff1f0;
+}
+
+.chatInfoAdminActions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}

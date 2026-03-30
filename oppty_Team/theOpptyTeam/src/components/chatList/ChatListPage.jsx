@@ -1,11 +1,14 @@
 import React, { useMemo, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { useChats } from "../../context/ChatContext.jsx";
-import opptyLogo from "../../assets/opptylogo.png"; // ✅ your logo image
+import opptyLogo from "../../assets/opptylogo.png";
 
 function formatTime(ts) {
   if (!ts) return "";
-  return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return new Date(ts).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function SectionTitle({ mode }) {
@@ -59,21 +62,30 @@ export default function ChatListPage({ mode = "dm" }) {
       <div className="chatList" role="list">
         {filtered.map((chat) => {
           const last = chat.messages?.[chat.messages.length - 1];
+
           return (
             <NavLink
               key={chat.id}
-              to={chat.id} // relative => /chats/:id or /groups/:id
+              to={chat.id}
               className={({ isActive }) => `chatRow ${isActive ? "active" : ""}`}
               role="listitem"
             >
               <img className="avatar" src={chat.avatarUrl} alt="" />
+
               <div className="chatRowBody">
                 <div className="chatRowTop">
                   <div className="chatName">{chat.name}</div>
                   <div className="chatTime">{formatTime(last?.createdAt)}</div>
                 </div>
+
                 <div className="chatPreview">
-                  {last?.text ? last.text : <span className="muted">No messages yet</span>}
+                  {chat.blocked ? (
+                    <span className="muted">Blocked by admin</span>
+                  ) : last?.text ? (
+                    last.text
+                  ) : (
+                    <span className="muted">No messages yet</span>
+                  )}
                 </div>
               </div>
             </NavLink>
