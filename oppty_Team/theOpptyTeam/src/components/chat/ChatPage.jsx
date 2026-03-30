@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useChats } from "../../context/ChatContext.jsx";
 import { useMediaQuery } from "../../hooks/useMediaQuery.js";
+import { employeeDB } from "../../data/employees";
 import MessageBubble from "./MessageBubble.jsx";
 
 function formatDay(ts) {
@@ -44,6 +45,8 @@ export default function ChatPage() {
     updateChatName,
     deleteChat,
     toggleBlockChat,
+    addGroupMember,
+    removeGroupMember,
     isAdmin,
   } = useChats();
 
@@ -59,6 +62,8 @@ export default function ChatPage() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState("");
 
+  const [selectedMemberId, setSelectedMemberId] = useState("");
+
   const endRef = useRef(null);
   const optionsRef = useRef(null);
   const searchInputRef = useRef(null);
@@ -68,6 +73,12 @@ export default function ChatPage() {
   const canSend = text.trim().length > 0;
   const canEditName =
     isAdmin || chat?.kind !== "group" || chat?.isAdmin === true;
+
+  const availableEmployees = useMemo(() => {
+    if (!chat || chat.kind !== "group") return [];
+    const memberIds = new Set((chat.members || []).map((m) => String(m.id)));
+    return employeeDB.filter((emp) => !memberIds.has(String(emp.id)));
+  }, [chat]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -208,6 +219,7 @@ export default function ChatPage() {
     setShowChatInfo(false);
     setIsEditingName(false);
     setEditedName(chat.name || "");
+    setSelectedMemberId("");
   };
 
   const handleStartEditName = () => {
@@ -240,6 +252,26 @@ export default function ChatPage() {
     if (!isAdmin) return;
     toggleBlockChat(chat.id);
     setShowOptionsMenu(false);
+  };
+
+  const handleAddMember = () => {
+    if (!isAdmin || chat.kind !== "group" || !selectedMemberId) return;
+
+    const employee = employeeDB.find((emp) => String(emp.id) === String(selectedMemberId));
+    if (!employee) return;
+
+    addGroupMember(chat.id, {
+      id: employee.id,
+      name: employee.name,
+      email: employee.email,
+    });
+
+    setSelectedMemberId("");
+  };
+
+  const handleRemoveMember = (memberId) => {
+    if (!isAdmin || chat.kind !== "group") return;
+    removeGroupMember(chat.id, memberId);
   };
 
   return (
@@ -500,6 +532,67 @@ export default function ChatPage() {
                   {chat.contact || chat.email || "Not available"}
                 </strong>
               </div>
+
+              {chat.kind === "group" && (
+                <div className="chatInfoCardRow">
+                  <span className="chatInfoLabel">Employees in Group</span>
+
+                  <div className="groupMembersList">
+                    {chat.members?.length ? (
+                      chat.members.map((member) => (
+                        <div key={member.id} className="groupMemberItem">
+                          <div className="groupMemberInfo">
+                            <strong>{member.name}</strong>
+                            <span>{member.email}</span>
+                          </div>
+
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              className="groupMemberRemoveBtn"
+                              onClick={() => handleRemoveMember(member.id)}
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <span className="muted">No employees added yet.</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {isAdmin && chat.kind === "group" && (
+                <div className="chatInfoCardRow">
+                  <span className="chatInfoLabel">Add Employee</span>
+
+                  <div className="groupAddMemberBox">
+                    <select
+                      className="groupMemberSelect"
+                      value={selectedMemberId}
+                      onChange={(e) => setSelectedMemberId(e.target.value)}
+                    >
+                      <option value="">Select employee</option>
+                      {availableEmployees.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.name} ({emp.email})
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      className="popup-btn popup-btn-danger"
+                      onClick={handleAddMember}
+                      disabled={!selectedMemberId}
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {isAdmin && (
                 <div className="chatInfoAdminActions">

@@ -834,3 +834,75 @@
   flex-wrap: wrap;
   margin-top: 6px;
 }
+
+
+
+.groupMembersList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.groupMemberItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #ffffff;
+  border: 1px solid #edf0f2;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.groupMemberInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.groupMemberInfo strong {
+  font-size: 14px;
+  color: #111b21;
+}
+
+.groupMemberInfo span {
+  font-size: 12px;
+  color: #667781;
+}
+
+.groupMemberRemoveBtn {
+  border: none;
+  background: #fff1f0;
+  color: #d93025;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.groupAddMemberBox {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.groupMemberSelect {
+  flex: 1;
+  min-width: 200px;
+  height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0 12px;
+  background: #fff;
+  color: var(--text);
+  outline: none;
+}
+
+.groupMemberSelect:focus {
+  border-color: #ff6b00;
+  box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.12);
+}

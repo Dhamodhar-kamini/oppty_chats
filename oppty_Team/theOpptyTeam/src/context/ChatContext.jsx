@@ -40,13 +40,6 @@ const seed = [
         text: "Here are all the files. Let me know once you’ve had a look.",
         createdAt: Date.now() - 1000 * 60 * 55,
       },
-      {
-        id: uid(),
-        chatId: "1",
-        sender: "me",
-        text: "Wow! Have great time. Enjoy.",
-        createdAt: Date.now() - 1000 * 60 * 52,
-      },
     ],
   },
   {
@@ -87,6 +80,10 @@ const seed = [
     contact: "opptyteam@oppty.com",
     isAdmin: true,
     blocked: false,
+    members: [
+      { id: "emp-1", name: "Employee One", email: "employee@oppty.com" },
+      { id: "emp-3", name: "Maya", email: "maya@oppty.com" },
+    ],
     messages: [
       {
         id: uid(),
@@ -109,6 +106,7 @@ function normalizeAndMerge(persisted) {
     contact: c.contact ?? "Not available",
     isAdmin: c.isAdmin ?? false,
     blocked: c.blocked ?? false,
+    members: Array.isArray(c.members) ? c.members : [],
     messages: Array.isArray(c.messages) ? c.messages : [],
   }));
 
@@ -170,11 +168,9 @@ function reducer(state, action) {
       const next = state.chats.map((chat) => {
         if (String(chat.id) !== String(action.chatId)) return chat;
 
-        if (isSystemAdmin()) {
-          return { ...chat, name };
-        }
-
+        if (isSystemAdmin()) return { ...chat, name };
         if (chat.kind === "group" && !chat.isAdmin) return chat;
+
         return { ...chat, name };
       });
 
@@ -223,6 +219,7 @@ function reducer(state, action) {
         contact: action.payload.contact?.trim() || "Not available",
         isAdmin: true,
         blocked: false,
+        members: [],
         messages: [],
       };
 
@@ -233,7 +230,6 @@ function reducer(state, action) {
 
     case "DELETE_CHAT": {
       if (!isSystemAdmin()) return state;
-
       const next = state.chats.filter((chat) => String(chat.id) !== String(action.chatId));
       saveChats(next);
       return { chats: next };
@@ -241,12 +237,49 @@ function reducer(state, action) {
 
     case "TOGGLE_BLOCK_CHAT": {
       if (!isSystemAdmin()) return state;
-
       const next = state.chats.map((chat) =>
         String(chat.id) === String(action.chatId)
           ? { ...chat, blocked: !chat.blocked }
           : chat
       );
+      saveChats(next);
+      return { chats: next };
+    }
+
+    case "ADD_GROUP_MEMBER": {
+      if (!isSystemAdmin()) return state;
+
+      const next = state.chats.map((chat) => {
+        if (String(chat.id) !== String(action.chatId) || chat.kind !== "group") return chat;
+
+        const exists = (chat.members || []).some(
+          (member) => String(member.id) === String(action.member.id)
+        );
+        if (exists) return chat;
+
+        return {
+          ...chat,
+          members: [...(chat.members || []), action.member],
+        };
+      });
+
+      saveChats(next);
+      return { chats: next };
+    }
+
+    case "REMOVE_GROUP_MEMBER": {
+      if (!isSystemAdmin()) return state;
+
+      const next = state.chats.map((chat) => {
+        if (String(chat.id) !== String(action.chatId) || chat.kind !== "group") return chat;
+
+        return {
+          ...chat,
+          members: (chat.members || []).filter(
+            (member) => String(member.id) !== String(action.memberId)
+          ),
+        };
+      });
 
       saveChats(next);
       return { chats: next };
@@ -278,6 +311,10 @@ export function ChatProvider({ children }) {
       addGroup: (payload) => dispatch({ type: "ADD_GROUP", payload }),
       deleteChat: (chatId) => dispatch({ type: "DELETE_CHAT", chatId }),
       toggleBlockChat: (chatId) => dispatch({ type: "TOGGLE_BLOCK_CHAT", chatId }),
+      addGroupMember: (chatId, member) =>
+        dispatch({ type: "ADD_GROUP_MEMBER", chatId, member }),
+      removeGroupMember: (chatId, memberId) =>
+        dispatch({ type: "REMOVE_GROUP_MEMBER", chatId, memberId }),
       resetChats: () => dispatch({ type: "RESET" }),
       isAdmin: isSystemAdmin(),
     }),
