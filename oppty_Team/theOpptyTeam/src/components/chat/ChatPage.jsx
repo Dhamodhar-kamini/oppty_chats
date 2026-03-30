@@ -38,7 +38,7 @@ export default function ChatPage() {
   const navigate = useNavigate();
   const isDesktop = useMediaQuery("(min-width: 900px)");
 
-  const { getChatById, sendMessage } = useChats();
+  const { getChatById, sendMessage, updateChatName } = useChats();
   const chat = chatId ? getChatById(chatId) : null;
 
   const [text, setText] = useState("");
@@ -48,22 +48,29 @@ export default function ChatPage() {
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [showChatInfo, setShowChatInfo] = useState(false);
 
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState("");
+
   const endRef = useRef(null);
   const optionsRef = useRef(null);
   const searchInputRef = useRef(null);
+  const editNameInputRef = useRef(null);
   const messageRefs = useRef({});
 
   const canSend = text.trim().length > 0;
+  const canEditName = chat?.kind !== "group" || chat?.isAdmin === true;
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatId, chat?.messages?.length]);
 
   useEffect(() => {
-    if (searchOpen) {
-      searchInputRef.current?.focus();
-    }
+    if (searchOpen) searchInputRef.current?.focus();
   }, [searchOpen]);
+
+  useEffect(() => {
+    if (isEditingName) editNameInputRef.current?.focus();
+  }, [isEditingName]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -76,6 +83,8 @@ export default function ChatPage() {
       if (event.key === "Escape") {
         setShowOptionsMenu(false);
         setShowChatInfo(false);
+        setIsEditingName(false);
+
         if (searchOpen) {
           setSearchOpen(false);
           setSearchTerm("");
@@ -95,7 +104,6 @@ export default function ChatPage() {
 
   const matchedMessages = useMemo(() => {
     if (!chat?.messages?.length || !searchTerm.trim()) return [];
-
     return chat.messages.filter((m) =>
       m.text?.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -106,7 +114,6 @@ export default function ChatPage() {
       setActiveSearchIndex(0);
       return;
     }
-
     if (activeSearchIndex >= matchedMessages.length) {
       setActiveSearchIndex(0);
     }
@@ -114,15 +121,10 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!matchedMessages.length) return;
-
     const currentMatch = matchedMessages[activeSearchIndex];
     const node = messageRefs.current[currentMatch.id];
-
     if (node) {
-      node.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
+      node.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   }, [activeSearchIndex, matchedMessages]);
 
@@ -189,10 +191,32 @@ export default function ChatPage() {
   const handleOpenChatInfo = () => {
     setShowChatInfo(true);
     setShowOptionsMenu(false);
+    setEditedName(chat.name || "");
+    setIsEditingName(false);
   };
 
   const handleCloseChatInfo = () => {
     setShowChatInfo(false);
+    setIsEditingName(false);
+    setEditedName(chat.name || "");
+  };
+
+  const handleStartEditName = () => {
+    if (!canEditName) return;
+    setEditedName(chat.name || "");
+    setIsEditingName(true);
+  };
+
+  const handleCancelEditName = () => {
+    setIsEditingName(false);
+    setEditedName(chat.name || "");
+  };
+
+  const handleSaveEditName = () => {
+    const trimmed = editedName.trim();
+    if (!trimmed || !canEditName) return;
+    updateChatName(chat.id, trimmed);
+    setIsEditingName(false);
   };
 
   return (
@@ -234,21 +258,11 @@ export default function ChatPage() {
         </button>
 
         <div className="chatHeaderActions" ref={optionsRef}>
-          <button
-            className="iconBtn"
-            aria-label="Search in chat"
-            title="Search in chat"
-            onClick={handleOpenSearch}
-          >
+          <button className="iconBtn" aria-label="Search in chat" title="Search in chat" onClick={handleOpenSearch}>
             ⌕
           </button>
 
-          <button
-            className="iconBtn"
-            aria-label="More options"
-            title="More options"
-            onClick={handleToggleOptions}
-          >
+          <button className="iconBtn" aria-label="More options" title="More options" onClick={handleToggleOptions}>
             ⋯
           </button>
 
@@ -263,11 +277,7 @@ export default function ChatPage() {
               <button type="button" className="chatOptionsItem" onClick={handleScrollToLatest}>
                 Scroll to latest
               </button>
-              <button
-                type="button"
-                className="chatOptionsItem"
-                onClick={() => setShowOptionsMenu(false)}
-              >
+              <button type="button" className="chatOptionsItem" onClick={() => setShowOptionsMenu(false)}>
                 Close
               </button>
             </div>
@@ -296,32 +306,15 @@ export default function ChatPage() {
                 : "0/0"}
             </span>
 
-            <button
-              type="button"
-              className="iconBtn"
-              onClick={handlePrevMatch}
-              disabled={!matchedMessages.length}
-              title="Previous"
-            >
+            <button type="button" className="iconBtn" onClick={handlePrevMatch} disabled={!matchedMessages.length} title="Previous">
               ↑
             </button>
 
-            <button
-              type="button"
-              className="iconBtn"
-              onClick={handleNextMatch}
-              disabled={!matchedMessages.length}
-              title="Next"
-            >
+            <button type="button" className="iconBtn" onClick={handleNextMatch} disabled={!matchedMessages.length} title="Next">
               ↓
             </button>
 
-            <button
-              type="button"
-              className="iconBtn"
-              onClick={handleCloseSearch}
-              title="Close search"
-            >
+            <button type="button" className="iconBtn" onClick={handleCloseSearch} title="Close search">
               ✕
             </button>
           </div>
@@ -344,15 +337,65 @@ export default function ChatPage() {
               >
                 ←
               </button>
-              <div className="chatInfoDrawerTitle">Contact info</div>
+              <div className="chatInfoDrawerTitle">
+                {chat.kind === "group" ? "Group info" : "Contact info"}
+              </div>
             </div>
 
             <div className="chatInfoHero">
               <img className="chatInfoHeroAvatar" src={chat.avatarUrl} alt={chat.name} />
-              <div className="chatInfoHeroName">{chat.name}</div>
-              <div className="chatInfoHeroStatus">
-                {chat.isOnline ? "online" : chat.lastSeen ? chat.lastSeen : "offline"}
-              </div>
+
+              {!isEditingName ? (
+                <>
+                  <div className="chatInfoHeroName">{chat.name}</div>
+                  <div className="chatInfoHeroStatus">
+                    {chat.isOnline ? "online" : chat.lastSeen ? chat.lastSeen : "offline"}
+                  </div>
+
+                  {canEditName && (
+                    <button
+                      type="button"
+                      className="chatEditNameBtn"
+                      onClick={handleStartEditName}
+                    >
+                      Edit name
+                    </button>
+                  )}
+                </>
+              ) : (
+                <div className="chatEditNameBox">
+                  <input
+                    ref={editNameInputRef}
+                    type="text"
+                    className="chatEditNameInput"
+                    value={editedName}
+                    onChange={(e) => setEditedName(e.target.value)}
+                    placeholder="Enter name"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSaveEditName();
+                    }}
+                  />
+
+                  <div className="chatEditNameActions">
+                    <button
+                      type="button"
+                      className="popup-btn popup-btn-secondary"
+                      onClick={handleCancelEditName}
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      className="popup-btn popup-btn-danger"
+                      onClick={handleSaveEditName}
+                      disabled={!editedName.trim()}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="chatInfoSection">
@@ -364,7 +407,9 @@ export default function ChatPage() {
               </div>
 
               <div className="chatInfoCardRow">
-                <span className="chatInfoLabel">Phone / Email</span>
+                <span className="chatInfoLabel">
+                  {chat.kind === "group" ? "Group contact" : "Phone / Email"}
+                </span>
                 <strong className="chatInfoValue">
                   {chat.contact || chat.email || "Not available"}
                 </strong>

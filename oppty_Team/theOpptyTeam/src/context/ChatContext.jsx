@@ -20,11 +20,6 @@ function saveChats(chats) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(chats));
 }
 
-/**
- * kind:
- *  - "dm"    => normal chats
- *  - "group" => groups
- */
 const seed = [
   {
     id: "1",
@@ -33,6 +28,8 @@ const seed = [
     avatarUrl: "https://i.pravatar.cc/100?img=5",
     isOnline: true,
     lastSeen: "",
+    about: "Hey there! I am using Oppty Chats.",
+    contact: "elena@oppty.com",
     messages: [
       {
         id: uid(),
@@ -57,13 +54,25 @@ const seed = [
     avatarUrl: "https://i.pravatar.cc/100?img=12",
     isOnline: false,
     lastSeen: "last seen today at 10:21",
+    about: "Hey there! I am using Oppty Chats.",
+    contact: "Not available",
     messages: [
-      { id: uid(), chatId: "2", sender: "them", text: "Video call later?", createdAt: Date.now() - 1000 * 60 * 180 },
-      { id: uid(), chatId: "2", sender: "me", text: "Sure—send a time.", createdAt: Date.now() - 1000 * 60 * 175 },
+      {
+        id: uid(),
+        chatId: "2",
+        sender: "them",
+        text: "Video call later?",
+        createdAt: Date.now() - 1000 * 60 * 180,
+      },
+      {
+        id: uid(),
+        chatId: "2",
+        sender: "me",
+        text: "Sure—send a time.",
+        createdAt: Date.now() - 1000 * 60 * 175,
+      },
     ],
   },
-
-  // ✅ Group example
   {
     id: "g1",
     kind: "group",
@@ -71,24 +80,33 @@ const seed = [
     avatarUrl: "https://i.pravatar.cc/100?img=20",
     isOnline: false,
     lastSeen: "",
+    about: "Official team discussion group.",
+    contact: "opptyteam@oppty.com",
+    isAdmin: true, // current user is admin for this group
     messages: [
-      { id: uid(), chatId: "g1", sender: "them", text: "Welcome to Oppty Team group!", createdAt: Date.now() - 1000 * 60 * 300 },
+      {
+        id: uid(),
+        chatId: "g1",
+        sender: "them",
+        text: "Welcome to Oppty Team group!",
+        createdAt: Date.now() - 1000 * 60 * 300,
+      },
     ],
   },
 ];
 
 function normalizeAndMerge(persisted) {
-  // If nothing persisted, return seed
   if (!Array.isArray(persisted)) return seed;
 
-  // Normalize old persisted records (if kind is missing)
   const persistedNormalized = persisted.map((c) => ({
     ...c,
     kind: c.kind ?? "dm",
+    about: c.about ?? "Hey there! I am using Oppty Chats.",
+    contact: c.contact ?? "Not available",
+    isAdmin: c.isAdmin ?? false,
     messages: Array.isArray(c.messages) ? c.messages : [],
   }));
 
-  // Merge: keep persisted chats by id, but add any new seed chats not present (like groups)
   const byId = new Map(persistedNormalized.map((c) => [c.id, c]));
   for (const s of seed) {
     if (!byId.has(s.id)) byId.set(s.id, s);
@@ -124,10 +142,26 @@ function reducer(state, action) {
         c.id === action.chatId ? { ...c, messages: [...c.messages, msg] } : c
       );
 
-      // Move updated chat to top
       const updated = chats.find((c) => c.id === action.chatId);
       const rest = chats.filter((c) => c.id !== action.chatId);
       const next = updated ? [updated, ...rest] : chats;
+
+      saveChats(next);
+      return { chats: next };
+    }
+
+    case "UPDATE_CHAT_NAME": {
+      const name = action.name.trim();
+      if (!name) return state;
+
+      const next = state.chats.map((chat) => {
+        if (String(chat.id) !== String(action.chatId)) return chat;
+
+        // group: only admin can rename
+        if (chat.kind === "group" && !chat.isAdmin) return chat;
+
+        return { ...chat, name };
+      });
 
       saveChats(next);
       return { chats: next };
@@ -145,14 +179,16 @@ export function ChatProvider({ children }) {
     const persisted = loadChats();
     const merged = normalizeAndMerge(persisted);
     dispatch({ type: "INIT", chats: merged });
-    saveChats(merged); // ensure groups are persisted too
+    saveChats(merged);
   }, []);
 
   const api = useMemo(
     () => ({
       chats: state.chats,
-      getChatById: (id) => state.chats.find((c) => c.id === id),
+      getChatById: (id) => state.chats.find((c) => String(c.id) === String(id)),
       sendMessage: (chatId, text) => dispatch({ type: "SEND", chatId, text }),
+      updateChatName: (chatId, name) =>
+        dispatch({ type: "UPDATE_CHAT_NAME", chatId, name }),
       resetChats: () => dispatch({ type: "RESET" }),
     }),
     [state.chats]
