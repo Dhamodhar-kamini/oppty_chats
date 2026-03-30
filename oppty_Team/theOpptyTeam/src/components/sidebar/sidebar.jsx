@@ -188,9 +188,9 @@ export default function Sidebar({ isChatOpen }) {
     setShowProfilePopup(false);
 
     setTimeout(() => {
-      localStorage.removeItem("employeeAuth");
-      navigate("/login");
-    }, 1600);
+  localStorage.removeItem("employeeAuth");
+  window.location.href = "/login";
+}, 1600);
   };
 
   const handlePhotoButtonClick = () => {

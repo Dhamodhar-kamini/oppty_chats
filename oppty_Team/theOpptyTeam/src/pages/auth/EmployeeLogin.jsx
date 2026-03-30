@@ -78,8 +78,8 @@ export default function EmployeeLogin() {
     setIsLoggingIn(true);
 
     setTimeout(() => {
-      navigate("/chats");
-    }, 1800);
+  window.location.href = "/chats";
+}, 1800);
   };
 
   const openForgotPopup = () => {
