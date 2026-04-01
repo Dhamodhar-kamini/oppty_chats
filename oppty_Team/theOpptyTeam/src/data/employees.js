@@ -5,6 +5,7 @@ export const employeeDB = [
     password: "123456",
     name: "Employee One",
     role: "employee",
+    avatarUrl: "https://i.pravatar.cc/100?img=11",
   },
   {
     id: "emp-2",
@@ -12,6 +13,7 @@ export const employeeDB = [
     password: "admin123",
     name: "Admin User",
     role: "admin",
+    avatarUrl: "https://i.pravatar.cc/100?img=15",
   },
   {
     id: "emp-3",
@@ -19,6 +21,7 @@ export const employeeDB = [
     password: "maya123",
     name: "Maya",
     role: "employee",
+    avatarUrl: "https://i.pravatar.cc/100?img=21",
   },
   {
     id: "emp-4",
@@ -26,5 +29,6 @@ export const employeeDB = [
     password: "jason123",
     name: "Jason",
     role: "employee",
+    avatarUrl: "https://i.pravatar.cc/100?img=22",
   },
 ];

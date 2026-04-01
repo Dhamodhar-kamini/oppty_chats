@@ -34,6 +34,11 @@ function HighlightText({ text, query }) {
   );
 }
 
+const demoMedia = [
+  "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500",
+  "https://images.unsplash.com/photo-1455390582262-044cdead277a?w=500",
+];
+
 export default function ChatPage() {
   const { chatId } = useParams();
   const navigate = useNavigate();
@@ -63,6 +68,9 @@ export default function ChatPage() {
   const [editedName, setEditedName] = useState("");
 
   const [selectedMemberId, setSelectedMemberId] = useState("");
+  const [memberSearch, setMemberSearch] = useState("");
+  const [groupMemberFilter, setGroupMemberFilter] = useState("");
+  const [previewMedia, setPreviewMedia] = useState("");
 
   const endRef = useRef(null);
   const optionsRef = useRef(null);
@@ -70,15 +78,41 @@ export default function ChatPage() {
   const editNameInputRef = useRef(null);
   const messageRefs = useRef({});
 
+  const addMemberSearchRef = useRef(null);
+  const membersFilterRef = useRef(null);
+  const addMemberSectionRef = useRef(null);
+  const membersListSectionRef = useRef(null);
+
   const canSend = text.trim().length > 0;
   const canEditName =
     isAdmin || chat?.kind !== "group" || chat?.isAdmin === true;
 
+  const memberCount = chat?.kind === "group" ? chat.members?.length || 0 : 0;
+
   const availableEmployees = useMemo(() => {
     if (!chat || chat.kind !== "group") return [];
+
     const memberIds = new Set((chat.members || []).map((m) => String(m.id)));
-    return employeeDB.filter((emp) => !memberIds.has(String(emp.id)));
-  }, [chat]);
+
+    return employeeDB
+      .filter((emp) => emp.role === "employee")
+      .filter((emp) => !memberIds.has(String(emp.id)))
+      .filter((emp) =>
+        memberSearch.trim()
+          ? `${emp.name} ${emp.email}`.toLowerCase().includes(memberSearch.toLowerCase())
+          : true
+      );
+  }, [chat, memberSearch]);
+
+  const filteredGroupMembers = useMemo(() => {
+    if (!chat || chat.kind !== "group") return [];
+
+    return (chat.members || []).filter((member) =>
+      groupMemberFilter.trim()
+        ? `${member.name} ${member.email}`.toLowerCase().includes(groupMemberFilter.toLowerCase())
+        : true
+    );
+  }, [chat, groupMemberFilter]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -104,6 +138,7 @@ export default function ChatPage() {
         setShowOptionsMenu(false);
         setShowChatInfo(false);
         setIsEditingName(false);
+        setPreviewMedia("");
 
         if (searchOpen) {
           setSearchOpen(false);
@@ -220,6 +255,8 @@ export default function ChatPage() {
     setIsEditingName(false);
     setEditedName(chat.name || "");
     setSelectedMemberId("");
+    setMemberSearch("");
+    setGroupMemberFilter("");
   };
 
   const handleStartEditName = () => {
@@ -264,14 +301,27 @@ export default function ChatPage() {
       id: employee.id,
       name: employee.name,
       email: employee.email,
+      avatarUrl: employee.avatarUrl,
     });
 
     setSelectedMemberId("");
+    setMemberSearch("");
   };
 
   const handleRemoveMember = (memberId) => {
     if (!isAdmin || chat.kind !== "group") return;
     removeGroupMember(chat.id, memberId);
+  };
+
+  const handleFocusAddMember = () => {
+    if (!isAdmin) return;
+    addMemberSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => addMemberSearchRef.current?.focus(), 250);
+  };
+
+  const handleFocusMemberSearch = () => {
+    membersListSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => membersFilterRef.current?.focus(), 250);
   };
 
   return (
@@ -307,7 +357,9 @@ export default function ChatPage() {
           <div className="chatHeaderText">
             <div className="chatHeaderName">{chat.name}</div>
             <div className="chatHeaderMeta">
-              {chat.blocked
+              {chat.kind === "group"
+                ? `${memberCount} member${memberCount !== 1 ? "s" : ""}`
+                : chat.blocked
                 ? "blocked by admin"
                 : chat.isOnline
                 ? "online"
@@ -319,21 +371,11 @@ export default function ChatPage() {
         </button>
 
         <div className="chatHeaderActions" ref={optionsRef}>
-          <button
-            className="iconBtn"
-            aria-label="Search in chat"
-            title="Search in chat"
-            onClick={handleOpenSearch}
-          >
+          <button className="iconBtn" aria-label="Search in chat" title="Search in chat" onClick={handleOpenSearch}>
             ⌕
           </button>
 
-          <button
-            className="iconBtn"
-            aria-label="More options"
-            title="More options"
-            onClick={handleToggleOptions}
-          >
+          <button className="iconBtn" aria-label="More options" title="More options" onClick={handleToggleOptions}>
             ⋯
           </button>
 
@@ -401,32 +443,15 @@ export default function ChatPage() {
                 : "0/0"}
             </span>
 
-            <button
-              type="button"
-              className="iconBtn"
-              onClick={handlePrevMatch}
-              disabled={!matchedMessages.length}
-              title="Previous"
-            >
+            <button type="button" className="iconBtn" onClick={handlePrevMatch} disabled={!matchedMessages.length} title="Previous">
               ↑
             </button>
 
-            <button
-              type="button"
-              className="iconBtn"
-              onClick={handleNextMatch}
-              disabled={!matchedMessages.length}
-              title="Next"
-            >
+            <button type="button" className="iconBtn" onClick={handleNextMatch} disabled={!matchedMessages.length} title="Next">
               ↓
             </button>
 
-            <button
-              type="button"
-              className="iconBtn"
-              onClick={handleCloseSearch}
-              title="Close search"
-            >
+            <button type="button" className="iconBtn" onClick={handleCloseSearch} title="Close search">
               ✕
             </button>
           </div>
@@ -436,11 +461,11 @@ export default function ChatPage() {
       {showChatInfo && (
         <div className="chatInfoOverlay" onClick={handleCloseChatInfo}>
           <aside
-            className="chatInfoDrawer"
+            className="chatInfoDrawer whatsappGroupInfoDrawer"
             onClick={(e) => e.stopPropagation()}
             aria-label="Chat profile information"
           >
-            <div className="chatInfoDrawerHeader">
+            <div className="chatInfoDrawerHeader whatsappGroupInfoHeader">
               <button
                 type="button"
                 className="iconBtn"
@@ -454,30 +479,40 @@ export default function ChatPage() {
               </div>
             </div>
 
-            <div className="chatInfoHero">
-              <img className="chatInfoHeroAvatar" src={chat.avatarUrl} alt={chat.name} />
+            <div className="whatsappGroupTopCard">
+              <img className="whatsappGroupAvatar" src={chat.avatarUrl} alt={chat.name} />
 
               {!isEditingName ? (
                 <>
-                  <div className="chatInfoHeroName">{chat.name}</div>
-                  <div className="chatInfoHeroStatus">
-                    {chat.blocked
-                      ? "Blocked by admin"
-                      : chat.isOnline
-                      ? "online"
-                      : chat.lastSeen
-                      ? chat.lastSeen
-                      : "offline"}
+                  <div className="whatsappGroupNameRow">
+                    <div className="whatsappGroupName">{chat.name}</div>
+
+                    {canEditName && (
+                      <button
+                        type="button"
+                        className="groupInlineEditBtn"
+                        onClick={handleStartEditName}
+                        title="Edit name"
+                      >
+                        ✎
+                      </button>
+                    )}
                   </div>
 
-                  {canEditName && (
-                    <button
-                      type="button"
-                      className="chatEditNameBtn"
-                      onClick={handleStartEditName}
-                    >
-                      Edit name
-                    </button>
+                  {chat.kind === "group" ? (
+                    <div className="whatsappGroupMeta">
+                      Group · {memberCount} member{memberCount !== 1 ? "s" : ""}
+                    </div>
+                  ) : (
+                    <div className="whatsappGroupMeta">
+                      {chat.blocked
+                        ? "Blocked by admin"
+                        : chat.isOnline
+                        ? "online"
+                        : chat.lastSeen
+                        ? chat.lastSeen
+                        : "offline"}
+                    </div>
                   )}
                 </>
               ) : (
@@ -488,7 +523,7 @@ export default function ChatPage() {
                     className="chatEditNameInput"
                     value={editedName}
                     onChange={(e) => setEditedName(e.target.value)}
-                    placeholder="Enter name"
+                    placeholder={chat.kind === "group" ? "Enter group name" : "Enter name"}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") handleSaveEditName();
                     }}
@@ -514,107 +549,220 @@ export default function ChatPage() {
                   </div>
                 </div>
               )}
-            </div>
 
-            <div className="chatInfoSection">
-              <div className="chatInfoCardRow">
-                <span className="chatInfoLabel">About</span>
-                <strong className="chatInfoValue">
-                  {chat.about || "Hey there! I am using Oppty Chats."}
-                </strong>
-              </div>
-
-              <div className="chatInfoCardRow">
-                <span className="chatInfoLabel">
-                  {chat.kind === "group" ? "Group contact" : "Phone / Email"}
-                </span>
-                <strong className="chatInfoValue">
-                  {chat.contact || chat.email || "Not available"}
-                </strong>
-              </div>
-
-              {chat.kind === "group" && (
-                <div className="chatInfoCardRow">
-                  <span className="chatInfoLabel">Employees in Group</span>
-
-                  <div className="groupMembersList">
-                    {chat.members?.length ? (
-                      chat.members.map((member) => (
-                        <div key={member.id} className="groupMemberItem">
-                          <div className="groupMemberInfo">
-                            <strong>{member.name}</strong>
-                            <span>{member.email}</span>
-                          </div>
-
-                          {isAdmin && (
-                            <button
-                              type="button"
-                              className="groupMemberRemoveBtn"
-                              onClick={() => handleRemoveMember(member.id)}
-                            >
-                              Remove
-                            </button>
-                          )}
-                        </div>
-                      ))
-                    ) : (
-                      <span className="muted">No employees added yet.</span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {isAdmin && chat.kind === "group" && (
-                <div className="chatInfoCardRow">
-                  <span className="chatInfoLabel">Add Employee</span>
-
-                  <div className="groupAddMemberBox">
-                    <select
-                      className="groupMemberSelect"
-                      value={selectedMemberId}
-                      onChange={(e) => setSelectedMemberId(e.target.value)}
+              {chat.kind === "group" && isAdmin && (
+                <>
+                  <div className="groupQuickActions">
+                    <button
+                      type="button"
+                      className="groupQuickActionBtn"
+                      onClick={handleFocusAddMember}
                     >
-                      <option value="">Select employee</option>
-                      {availableEmployees.map((emp) => (
-                        <option key={emp.id} value={emp.id}>
-                          {emp.name} ({emp.email})
-                        </option>
-                      ))}
-                    </select>
+                      <span>👤+</span>
+                      <span>Add</span>
+                    </button>
 
                     <button
                       type="button"
-                      className="popup-btn popup-btn-danger"
-                      onClick={handleAddMember}
-                      disabled={!selectedMemberId}
+                      className="groupQuickActionBtn"
+                      onClick={handleFocusMemberSearch}
                     >
-                      Add
+                      <span>🔍</span>
+                      <span>Search</span>
                     </button>
                   </div>
-                </div>
+
+                  <div className="groupDescriptionCard">
+                    <div className="groupSectionLabel">Add group description</div>
+                    <div className="groupSectionValue">
+                      {chat.about || "No description added yet."}
+                    </div>
+                  </div>
+
+                  <div className="groupCreatedMeta">
+                    Group created by +91 78934 58943, on 2/24/2026 at 11:44 AM
+                  </div>
+                </>
               )}
 
-              {isAdmin && (
-                <div className="chatInfoAdminActions">
-                  <button
-                    type="button"
-                    className="popup-btn popup-btn-secondary"
-                    onClick={handleToggleBlock}
-                  >
-                    {chat.blocked ? "Unblock" : "Block"}{" "}
-                    {chat.kind === "group" ? "Group" : "Contact"}
-                  </button>
+              {chat.kind !== "group" && (
+                <div className="chatInfoSection chatInfoSectionContactOnly">
+                  <div className="chatInfoCardRow">
+                    <span className="chatInfoLabel">About</span>
+                    <strong className="chatInfoValue">
+                      {chat.about || "Hey there! I am using Oppty Chats."}
+                    </strong>
+                  </div>
 
-                  <button
-                    type="button"
-                    className="popup-btn popup-btn-danger"
-                    onClick={handleDeleteChat}
-                  >
-                    Delete {chat.kind === "group" ? "Group" : "Chat"}
-                  </button>
+                  <div className="chatInfoCardRow">
+                    <span className="chatInfoLabel">Phone / Email</span>
+                    <strong className="chatInfoValue">
+                      {chat.contact || chat.email || "Not available"}
+                    </strong>
+                  </div>
+
+                  {isAdmin && (
+                    <div className="chatInfoAdminActions">
+                      <button
+                        type="button"
+                        className="popup-btn popup-btn-secondary"
+                        onClick={handleToggleBlock}
+                      >
+                        {chat.blocked ? "Unblock" : "Block"} Contact
+                      </button>
+
+                      <button
+                        type="button"
+                        className="popup-btn popup-btn-danger"
+                        onClick={handleDeleteChat}
+                      >
+                        Delete Chat
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
+
+            {chat.kind === "group" && (
+              <>
+                <div className="groupInfoSectionCard">
+                  <div className="groupInfoSectionTop">
+                    <div className="groupInfoSectionTitle">Media, links and docs</div>
+                    <div className="groupInfoSectionCount">{demoMedia.length}</div>
+                  </div>
+
+                  <div className="groupMediaPreviewRow">
+                    {demoMedia.map((media, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        className="groupMediaPreviewItem"
+                        onClick={() => setPreviewMedia(media)}
+                      >
+                        <img src={media} alt={`media-${index}`} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="groupMembersSection" ref={membersListSectionRef}>
+                  <div className="groupMembersHeaderRow">
+                    <div className="groupMembersHeaderTitle">
+                      {memberCount} member{memberCount !== 1 ? "s" : ""}
+                    </div>
+                  </div>
+
+                  <div className="groupAddMemberSearchBox groupMembersFilterBox">
+                    <input
+                      ref={membersFilterRef}
+                      type="text"
+                      className="groupMemberSearchInput"
+                      value={groupMemberFilter}
+                      onChange={(e) => setGroupMemberFilter(e.target.value)}
+                      placeholder="Search members by name or email"
+                    />
+                  </div>
+
+                  {isAdmin && (
+                    <div className="groupAddMemberCard" ref={addMemberSectionRef}>
+                      <div className="groupAddMemberCardHeader">Add member</div>
+
+                      <div className="groupAddMemberSearchBox">
+                        <input
+                          ref={addMemberSearchRef}
+                          type="text"
+                          className="groupMemberSearchInput"
+                          value={memberSearch}
+                          onChange={(e) => setMemberSearch(e.target.value)}
+                          placeholder="Search employee by name or email"
+                        />
+                      </div>
+
+                      <div className="groupAddMemberBox">
+                        <select
+                          className="groupMemberSelect"
+                          value={selectedMemberId}
+                          onChange={(e) => setSelectedMemberId(e.target.value)}
+                        >
+                          <option value="">Select employee</option>
+                          {availableEmployees.map((emp) => (
+                            <option key={emp.id} value={emp.id}>
+                              {emp.name} ({emp.email})
+                            </option>
+                          ))}
+                        </select>
+
+                        <button
+                          type="button"
+                          className="popup-btn popup-btn-danger"
+                          onClick={handleAddMember}
+                          disabled={!selectedMemberId}
+                        >
+                          Add
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="groupMembersListWhatsapp">
+                    {filteredGroupMembers.length ? (
+                      filteredGroupMembers.map((member) => (
+                        <div key={member.id} className="groupMemberWhatsappItem">
+                          <div className="groupMemberInfoWrap">
+                            <img
+                              src={member.avatarUrl || "https://i.pravatar.cc/100"}
+                              alt={member.name}
+                              className="groupMemberAvatar"
+                            />
+                            <div className="groupMemberInfo">
+                              <strong>{member.name}</strong>
+                              <span>{member.email}</span>
+                            </div>
+                          </div>
+
+                          <div className="groupMemberRightMeta">
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                className="groupMemberRemoveBtn"
+                                onClick={() => handleRemoveMember(member.id)}
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="emptyList">
+                        <div className="muted">No members found.</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {isAdmin && (
+                    <div className="groupBottomActions">
+                      <button
+                        type="button"
+                        className="groupBottomActionBtn danger"
+                        onClick={handleDeleteChat}
+                      >
+                        Delete group
+                      </button>
+
+                      <button
+                        type="button"
+                        className="groupBottomActionBtn danger"
+                        onClick={handleToggleBlock}
+                      >
+                        {chat.blocked ? "Unblock group" : "Block group"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
 
             <div className="chatInfoDrawerActions">
               <button
@@ -626,6 +774,21 @@ export default function ChatPage() {
               </button>
             </div>
           </aside>
+        </div>
+      )}
+
+      {previewMedia && (
+        <div className="mediaPreviewOverlay" onClick={() => setPreviewMedia("")}>
+          <div className="mediaPreviewModal" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="mediaPreviewCloseBtn"
+              onClick={() => setPreviewMedia("")}
+            >
+              ✕
+            </button>
+            <img src={previewMedia} alt="Preview" className="mediaPreviewImage" />
+          </div>
         </div>
       )}
 

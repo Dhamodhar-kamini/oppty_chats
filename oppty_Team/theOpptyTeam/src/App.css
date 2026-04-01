@@ -664,6 +664,19 @@
   display: flex;
   flex-direction: column;
   animation: drawerSlideIn 0.22s ease;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+
+  /* Hide scrollbar but keep scroll working */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+
+.chatInfoDrawer::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .chatInfoDrawerHeader {
@@ -718,7 +731,6 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  overflow-y: auto;
 }
 
 .chatInfoCardRow {
@@ -905,4 +917,411 @@
 .groupMemberSelect:focus {
   border-color: #ff6b00;
   box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.12);
+}
+
+.groupMemberInfoWrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.groupMemberAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.groupAddMemberSearchBox {
+  margin-top: 8px;
+  margin-bottom: 10px;
+}
+
+.groupMemberSearchInput {
+  width: 100%;
+  height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0 12px;
+  background: #fff;
+  color: var(--text);
+  outline: none;
+}
+
+.groupMemberSearchInput:focus {
+  border-color: #ff6b00;
+  box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.12);
+}
+
+
+
+.whatsappGroupInfoDrawer {
+  background: #ffffff;
+}
+
+.whatsappGroupInfoHeader {
+  border-bottom: 1px solid var(--border);
+}
+
+.whatsappGroupTopCard {
+  padding: 22px 18px 16px;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+}
+
+.whatsappGroupAvatar {
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  margin: 0 auto 14px;
+}
+
+.whatsappGroupNameRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.whatsappGroupName {
+  font-size: 26px;
+  font-weight: 800;
+  color: #111b21;
+  text-align: center;
+}
+
+.groupInlineEditBtn {
+  border: none;
+  background: transparent;
+  font-size: 16px;
+  cursor: pointer;
+  color: #667781;
+}
+
+.whatsappGroupMeta {
+  margin-top: 6px;
+  text-align: center;
+  font-size: 14px;
+  color: #667781;
+}
+
+.groupQuickActions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.groupQuickActionBtn {
+  min-width: 110px;
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #111b21;
+}
+
+.groupDescriptionCard {
+  margin-top: 16px;
+  padding: 14px 0 8px;
+  border-top: 1px solid #f1f3f5;
+}
+
+.groupSectionLabel {
+  font-size: 12px;
+  font-weight: 700;
+  color: #00a884;
+  margin-bottom: 6px;
+}
+
+.groupSectionValue {
+  font-size: 14px;
+  color: #111b21;
+  line-height: 1.5;
+}
+
+.groupCreatedMeta {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #667781;
+}
+
+.groupInfoSectionCard {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+}
+
+.groupInfoSectionTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.groupInfoSectionTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111b21;
+}
+
+.groupInfoSectionCount {
+  font-size: 13px;
+  color: #667781;
+}
+
+.groupMediaPreviewRow {
+  display: flex;
+  gap: 10px;
+}
+
+.groupMediaPreviewItem {
+  width: 110px;
+  height: 95px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f5f6f6;
+}
+
+.groupMediaPreviewItem img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.groupSettingsList {
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+}
+
+.groupSettingsItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #f3f4f5;
+}
+
+.groupSettingsItem:last-child {
+  border-bottom: none;
+}
+
+.groupSettingsItem span {
+  font-size: 16px;
+  margin-top: 2px;
+}
+
+.groupSettingsItem strong {
+  display: block;
+  font-size: 14px;
+  color: #111b21;
+}
+
+.groupSettingsItem small {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #667781;
+}
+
+.groupMembersSection {
+  background: #fff;
+}
+
+.groupMembersHeaderRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 18px 10px;
+}
+
+.groupMembersHeaderTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111b21;
+}
+
+.groupMembersSearchBtn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.groupAddMemberCard {
+  padding: 0 18px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.groupAddMemberCardHeader {
+  font-size: 14px;
+  font-weight: 700;
+  color: #00a884;
+  margin-bottom: 10px;
+}
+
+.groupMembersListWhatsapp {
+  display: flex;
+  flex-direction: column;
+}
+
+.groupMemberWhatsappItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-bottom: 1px solid #f3f4f5;
+}
+
+.groupMemberRightMeta {
+  display: flex;
+  align-items: center;
+}
+
+.groupBottomActions {
+  display: flex;
+  flex-direction: column;
+  padding: 14px 18px 22px;
+  gap: 12px;
+}
+
+.groupBottomActionBtn {
+  border: none;
+  background: transparent;
+  text-align: left;
+  color: #111b21;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.groupBottomActionBtn.danger {
+  color: #d93025;
+}
+
+@media (max-width: 768px) {
+  .whatsappGroupAvatar {
+    width: 92px;
+    height: 92px;
+  }
+
+  .whatsappGroupName {
+    font-size: 22px;
+  }
+
+  .groupQuickActions {
+    flex-wrap: wrap;
+  }
+
+  .groupMediaPreviewItem {
+    width: 96px;
+    height: 84px;
+  }
+}
+
+
+.groupMembersFilterBox {
+  padding: 0 18px 10px;
+}
+
+.mediaPreviewOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 27, 33, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1300;
+  padding: 20px;
+}
+
+.mediaPreviewModal {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+}
+
+.mediaPreviewImage {
+  max-width: 100%;
+  max-height: 80vh;
+  border-radius: 14px;
+  object-fit: contain;
+  background: #fff;
+}
+
+.mediaPreviewCloseBtn {
+  position: absolute;
+  top: -14px;
+  right: -14px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #111b21;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.chatInfoSectionContactOnly {
+  margin-top: 20px;
+}
+
+.groupBottomActions {
+  display: flex;
+  flex-direction: column;
+  padding: 14px 18px 22px;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.groupBottomActionBtn {
+  border: none;
+  background: transparent;
+  text-align: left;
+  color: #111b21;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.groupBottomActionBtn.danger {
+  color: #d93025;
+}
+
+
+.groupMembersSection,
+.groupMembersListWhatsapp,
+.groupInfoSectionCard,
+.whatsappGroupTopCard {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.groupMembersSection::-webkit-scrollbar,
+.groupMembersListWhatsapp::-webkit-scrollbar,
+.groupInfoSectionCard::-webkit-scrollbar,
+.whatsappGroupTopCard::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+
+@media (max-width: 768px) {
+  .chatInfoDrawer {
+    width: 100%;
+    height: 100vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }

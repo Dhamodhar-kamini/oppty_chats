@@ -81,9 +81,19 @@ const seed = [
     isAdmin: true,
     blocked: false,
     members: [
-      { id: "emp-1", name: "Employee One", email: "employee@oppty.com" },
-      { id: "emp-3", name: "Maya", email: "maya@oppty.com" },
-    ],
+  {
+    id: "emp-1",
+    name: "Employee One",
+    email: "employee@oppty.com",
+    avatarUrl: "https://i.pravatar.cc/100?img=11",
+  },
+  {
+    id: "emp-3",
+    name: "Maya",
+    email: "maya@oppty.com",
+    avatarUrl: "https://i.pravatar.cc/100?img=21",
+  },
+],
     messages: [
       {
         id: uid(),
