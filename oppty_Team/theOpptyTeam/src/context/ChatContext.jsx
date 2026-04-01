@@ -37,8 +37,17 @@ const seed = [
         id: uid(),
         chatId: "1",
         sender: "them",
+        type: "text",
         text: "Here are all the files. Let me know once you’ve had a look.",
         createdAt: Date.now() - 1000 * 60 * 55,
+      },
+      {
+        id: uid(),
+        chatId: "1",
+        sender: "me",
+        type: "text",
+        text: "Wow! Have great time. Enjoy.",
+        createdAt: Date.now() - 1000 * 60 * 52,
       },
     ],
   },
@@ -57,6 +66,7 @@ const seed = [
         id: uid(),
         chatId: "2",
         sender: "them",
+        type: "text",
         text: "Video call later?",
         createdAt: Date.now() - 1000 * 60 * 180,
       },
@@ -64,6 +74,7 @@ const seed = [
         id: uid(),
         chatId: "2",
         sender: "me",
+        type: "text",
         text: "Sure—send a time.",
         createdAt: Date.now() - 1000 * 60 * 175,
       },
@@ -81,24 +92,25 @@ const seed = [
     isAdmin: true,
     blocked: false,
     members: [
-  {
-    id: "emp-1",
-    name: "Employee One",
-    email: "employee@oppty.com",
-    avatarUrl: "https://i.pravatar.cc/100?img=11",
-  },
-  {
-    id: "emp-3",
-    name: "Maya",
-    email: "maya@oppty.com",
-    avatarUrl: "https://i.pravatar.cc/100?img=21",
-  },
-],
+      {
+        id: "emp-1",
+        name: "Employee One",
+        email: "employee@oppty.com",
+        avatarUrl: "https://i.pravatar.cc/100?img=11",
+      },
+      {
+        id: "emp-3",
+        name: "Maya",
+        email: "maya@oppty.com",
+        avatarUrl: "https://i.pravatar.cc/100?img=21",
+      },
+    ],
     messages: [
       {
         id: uid(),
         chatId: "g1",
         sender: "them",
+        type: "text",
         text: "Welcome to Oppty Team group!",
         createdAt: Date.now() - 1000 * 60 * 300,
       },
@@ -117,7 +129,14 @@ function normalizeAndMerge(persisted) {
     isAdmin: c.isAdmin ?? false,
     blocked: c.blocked ?? false,
     members: Array.isArray(c.members) ? c.members : [],
-    messages: Array.isArray(c.messages) ? c.messages : [],
+    messages: Array.isArray(c.messages)
+      ? c.messages.map((m) => ({
+          type: m.type ?? "text",
+          fileUrl: m.fileUrl ?? "",
+          fileName: m.fileName ?? "",
+          ...m,
+        }))
+      : [],
   }));
 
   const byId = new Map(persistedNormalized.map((c) => [c.id, c]));
@@ -155,7 +174,35 @@ function reducer(state, action) {
         id: uid(),
         chatId: action.chatId,
         sender: "me",
+        type: "text",
         text,
+        createdAt: Date.now(),
+      };
+
+      const chats = state.chats.map((c) =>
+        c.id === action.chatId ? { ...c, messages: [...c.messages, msg] } : c
+      );
+
+      const updated = chats.find((c) => c.id === action.chatId);
+      const rest = chats.filter((c) => c.id !== action.chatId);
+      const next = updated ? [updated, ...rest] : chats;
+
+      saveChats(next);
+      return { chats: next };
+    }
+
+    case "SEND_ATTACHMENT": {
+      const target = state.chats.find((c) => c.id === action.chatId);
+      if (!target || target.blocked) return state;
+
+      const msg = {
+        id: uid(),
+        chatId: action.chatId,
+        sender: "me",
+        type: action.attachmentType,
+        text: action.fileName || "",
+        fileUrl: action.fileUrl || "",
+        fileName: action.fileName || "",
         createdAt: Date.now(),
       };
 
@@ -315,6 +362,14 @@ export function ChatProvider({ children }) {
       chats: state.chats,
       getChatById: (id) => state.chats.find((c) => String(c.id) === String(id)),
       sendMessage: (chatId, text) => dispatch({ type: "SEND", chatId, text }),
+      sendAttachment: (chatId, attachmentType, fileUrl, fileName) =>
+        dispatch({
+          type: "SEND_ATTACHMENT",
+          chatId,
+          attachmentType,
+          fileUrl,
+          fileName,
+        }),
       updateChatName: (chatId, name) =>
         dispatch({ type: "UPDATE_CHAT_NAME", chatId, name }),
       addContact: (payload) => dispatch({ type: "ADD_CONTACT", payload }),

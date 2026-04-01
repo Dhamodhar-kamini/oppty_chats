@@ -34,9 +34,32 @@ function HighlightText({ text, query }) {
   );
 }
 
-const demoMedia = [
-  "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500",
-  "https://images.unsplash.com/photo-1455390582262-044cdead277a?w=500",
+function isLink(text) {
+  return /^https?:\/\//i.test(text || "");
+}
+
+const fallbackMedia = [
+  {
+    id: "fallback-media-1",
+    fileUrl: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=500",
+    fileName: "sample-image-1.jpg",
+    type: "image",
+  },
+  {
+    id: "fallback-media-2",
+    fileUrl: "https://images.unsplash.com/photo-1455390582262-044cdead277a?w=500",
+    fileName: "sample-image-2.jpg",
+    type: "image",
+  },
+];
+
+const fallbackDocs = [
+  {
+    id: "fallback-doc-1",
+    fileUrl: "#",
+    fileName: "Project-Brief.pdf",
+    type: "document",
+  },
 ];
 
 export default function ChatPage() {
@@ -47,6 +70,7 @@ export default function ChatPage() {
   const {
     getChatById,
     sendMessage,
+    sendAttachment,
     updateChatName,
     deleteChat,
     toggleBlockChat,
@@ -72,6 +96,12 @@ export default function ChatPage() {
   const [groupMemberFilter, setGroupMemberFilter] = useState("");
   const [previewMedia, setPreviewMedia] = useState("");
 
+  const [showMediaPanel, setShowMediaPanel] = useState(false);
+  const [activeMediaTab, setActiveMediaTab] = useState("media");
+
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [showStickerMenu, setShowStickerMenu] = useState(false);
+
   const endRef = useRef(null);
   const optionsRef = useRef(null);
   const searchInputRef = useRef(null);
@@ -82,6 +112,16 @@ export default function ChatPage() {
   const membersFilterRef = useRef(null);
   const addMemberSectionRef = useRef(null);
   const membersListSectionRef = useRef(null);
+
+  const attachMenuRef = useRef(null);
+  const stickerMenuRef = useRef(null);
+  const attachBtnRef = useRef(null);
+  const stickerBtnRef = useRef(null);
+
+  const imageInputRef = useRef(null);
+  const documentInputRef = useRef(null);
+
+  const stickerOptions = ["😀", "😂", "😍", "🔥", "🎉", "❤️", "👍", "🙏", "😎", "🥳"];
 
   const canSend = text.trim().length > 0;
   const canEditName =
@@ -114,6 +154,25 @@ export default function ChatPage() {
     );
   }, [chat, groupMemberFilter]);
 
+  const uploadedMediaItems = useMemo(() => {
+    return (chat?.messages || []).filter((m) => m.type === "image");
+  }, [chat]);
+
+  const uploadedDocItems = useMemo(() => {
+    return (chat?.messages || []).filter((m) => m.type === "document");
+  }, [chat]);
+
+  const linkItems = useMemo(() => {
+    return (chat?.messages || []).filter((m) => isLink(m.text));
+  }, [chat]);
+
+  const mediaItems = uploadedMediaItems.length ? uploadedMediaItems : fallbackMedia;
+  const docItems = uploadedDocItems.length ? uploadedDocItems : fallbackDocs;
+
+  const totalSharedCount =
+    uploadedMediaItems.length + uploadedDocItems.length + linkItems.length ||
+    mediaItems.length + docItems.length + linkItems.length;
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatId, chat?.messages?.length]);
@@ -131,6 +190,26 @@ export default function ChatPage() {
       if (optionsRef.current && !optionsRef.current.contains(event.target)) {
         setShowOptionsMenu(false);
       }
+
+      if (
+        showAttachMenu &&
+        attachMenuRef.current &&
+        !attachMenuRef.current.contains(event.target) &&
+        attachBtnRef.current &&
+        !attachBtnRef.current.contains(event.target)
+      ) {
+        setShowAttachMenu(false);
+      }
+
+      if (
+        showStickerMenu &&
+        stickerMenuRef.current &&
+        !stickerMenuRef.current.contains(event.target) &&
+        stickerBtnRef.current &&
+        !stickerBtnRef.current.contains(event.target)
+      ) {
+        setShowStickerMenu(false);
+      }
     };
 
     const handleEscape = (event) => {
@@ -139,6 +218,9 @@ export default function ChatPage() {
         setShowChatInfo(false);
         setIsEditingName(false);
         setPreviewMedia("");
+        setShowMediaPanel(false);
+        setShowAttachMenu(false);
+        setShowStickerMenu(false);
 
         if (searchOpen) {
           setSearchOpen(false);
@@ -155,7 +237,7 @@ export default function ChatPage() {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [searchOpen]);
+  }, [searchOpen, showAttachMenu, showStickerMenu]);
 
   const matchedMessages = useMemo(() => {
     if (!chat?.messages?.length || !searchTerm.trim()) return [];
@@ -209,6 +291,49 @@ export default function ChatPage() {
     if (!v || chat.blocked) return;
     sendMessage(chat.id, v);
     setText("");
+    setShowAttachMenu(false);
+    setShowStickerMenu(false);
+  };
+
+  const handleAttachmentAction = (type) => {
+    if (chat.blocked) return;
+
+    if (type === "image") {
+      imageInputRef.current?.click();
+    } else if (type === "document") {
+      documentInputRef.current?.click();
+    } else if (type === "contact") {
+      setText((prev) => `${prev}${prev ? " " : ""}[Shared Contact]`);
+      setShowAttachMenu(false);
+    }
+  };
+
+  const handleImageSelected = (e) => {
+    const file = e.target.files?.[0];
+    if (!file || chat.blocked) return;
+
+    const fileUrl = URL.createObjectURL(file);
+    sendAttachment(chat.id, "image", fileUrl, file.name);
+
+    setShowAttachMenu(false);
+    e.target.value = "";
+  };
+
+  const handleDocumentSelected = (e) => {
+    const file = e.target.files?.[0];
+    if (!file || chat.blocked) return;
+
+    const fileUrl = URL.createObjectURL(file);
+    sendAttachment(chat.id, "document", fileUrl, file.name);
+
+    setShowAttachMenu(false);
+    e.target.value = "";
+  };
+
+  const handleStickerSelect = (sticker) => {
+    if (chat.blocked) return;
+    setText((prev) => `${prev}${prev ? " " : ""}${sticker}`);
+    setShowStickerMenu(false);
   };
 
   const handleOpenSearch = () => {
@@ -371,24 +496,17 @@ export default function ChatPage() {
         </button>
 
         <div className="chatHeaderActions" ref={optionsRef}>
-          <button className="iconBtn" aria-label="Search in chat" title="Search in chat" onClick={handleOpenSearch}>
-            ⌕
-          </button>
-
-          <button className="iconBtn" aria-label="More options" title="More options" onClick={handleToggleOptions}>
-            ⋯
-          </button>
+          <button className="iconBtn" onClick={handleOpenSearch}>⌕</button>
+          <button className="iconBtn" onClick={handleToggleOptions}>⋯</button>
 
           {showOptionsMenu && (
             <div className="chatOptionsMenu">
               <button type="button" className="chatOptionsItem" onClick={handleOpenChatInfo}>
                 View chat info
               </button>
-
               <button type="button" className="chatOptionsItem" onClick={handleCloseSearch}>
                 Clear search
               </button>
-
               <button type="button" className="chatOptionsItem" onClick={handleScrollToLatest}>
                 Scroll to latest
               </button>
@@ -399,7 +517,6 @@ export default function ChatPage() {
                     {chat.blocked ? "Unblock" : "Block"}{" "}
                     {chat.kind === "group" ? "group" : "contact"}
                   </button>
-
                   <button
                     type="button"
                     className="chatOptionsItem chatOptionsItemDanger"
@@ -410,11 +527,7 @@ export default function ChatPage() {
                 </>
               )}
 
-              <button
-                type="button"
-                className="chatOptionsItem"
-                onClick={() => setShowOptionsMenu(false)}
-              >
+              <button type="button" className="chatOptionsItem" onClick={() => setShowOptionsMenu(false)}>
                 Close
               </button>
             </div>
@@ -438,22 +551,11 @@ export default function ChatPage() {
 
           <div className="chatSearchMeta">
             <span className="chatSearchCount">
-              {matchedMessages.length
-                ? `${activeSearchIndex + 1}/${matchedMessages.length}`
-                : "0/0"}
+              {matchedMessages.length ? `${activeSearchIndex + 1}/${matchedMessages.length}` : "0/0"}
             </span>
-
-            <button type="button" className="iconBtn" onClick={handlePrevMatch} disabled={!matchedMessages.length} title="Previous">
-              ↑
-            </button>
-
-            <button type="button" className="iconBtn" onClick={handleNextMatch} disabled={!matchedMessages.length} title="Next">
-              ↓
-            </button>
-
-            <button type="button" className="iconBtn" onClick={handleCloseSearch} title="Close search">
-              ✕
-            </button>
+            <button type="button" className="iconBtn" onClick={handlePrevMatch} disabled={!matchedMessages.length}>↑</button>
+            <button type="button" className="iconBtn" onClick={handleNextMatch} disabled={!matchedMessages.length}>↓</button>
+            <button type="button" className="iconBtn" onClick={handleCloseSearch}>✕</button>
           </div>
         </div>
       )}
@@ -463,17 +565,9 @@ export default function ChatPage() {
           <aside
             className="chatInfoDrawer whatsappGroupInfoDrawer"
             onClick={(e) => e.stopPropagation()}
-            aria-label="Chat profile information"
           >
             <div className="chatInfoDrawerHeader whatsappGroupInfoHeader">
-              <button
-                type="button"
-                className="iconBtn"
-                onClick={handleCloseChatInfo}
-                aria-label="Close profile info"
-              >
-                ←
-              </button>
+              <button type="button" className="iconBtn" onClick={handleCloseChatInfo}>←</button>
               <div className="chatInfoDrawerTitle">
                 {chat.kind === "group" ? "Group info" : "Contact info"}
               </div>
@@ -486,14 +580,8 @@ export default function ChatPage() {
                 <>
                   <div className="whatsappGroupNameRow">
                     <div className="whatsappGroupName">{chat.name}</div>
-
                     {canEditName && (
-                      <button
-                        type="button"
-                        className="groupInlineEditBtn"
-                        onClick={handleStartEditName}
-                        title="Edit name"
-                      >
+                      <button type="button" className="groupInlineEditBtn" onClick={handleStartEditName}>
                         ✎
                       </button>
                     )}
@@ -528,22 +616,11 @@ export default function ChatPage() {
                       if (e.key === "Enter") handleSaveEditName();
                     }}
                   />
-
                   <div className="chatEditNameActions">
-                    <button
-                      type="button"
-                      className="popup-btn popup-btn-secondary"
-                      onClick={handleCancelEditName}
-                    >
+                    <button type="button" className="popup-btn popup-btn-secondary" onClick={handleCancelEditName}>
                       Cancel
                     </button>
-
-                    <button
-                      type="button"
-                      className="popup-btn popup-btn-danger"
-                      onClick={handleSaveEditName}
-                      disabled={!editedName.trim()}
-                    >
+                    <button type="button" className="popup-btn popup-btn-danger" onClick={handleSaveEditName} disabled={!editedName.trim()}>
                       Save
                     </button>
                   </div>
@@ -553,20 +630,11 @@ export default function ChatPage() {
               {chat.kind === "group" && isAdmin && (
                 <>
                   <div className="groupQuickActions">
-                    <button
-                      type="button"
-                      className="groupQuickActionBtn"
-                      onClick={handleFocusAddMember}
-                    >
+                    <button type="button" className="groupQuickActionBtn" onClick={handleFocusAddMember}>
                       <span>👤+</span>
                       <span>Add</span>
                     </button>
-
-                    <button
-                      type="button"
-                      className="groupQuickActionBtn"
-                      onClick={handleFocusMemberSearch}
-                    >
+                    <button type="button" className="groupQuickActionBtn" onClick={handleFocusMemberSearch}>
                       <span>🔍</span>
                       <span>Search</span>
                     </button>
@@ -601,21 +669,43 @@ export default function ChatPage() {
                     </strong>
                   </div>
 
+                  <div
+                    className="groupInfoSectionCard mediaLinksDocsCard"
+                    onClick={() => setShowMediaPanel(true)}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="groupInfoSectionTop">
+                      <div className="groupInfoSectionTitle">Media, links and docs</div>
+                      <div className="groupInfoSectionCount">{totalSharedCount}</div>
+                    </div>
+
+                    <div className="groupMediaPreviewRow">
+                      {mediaItems.slice(0, 2).map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className="groupMediaPreviewItem"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (item.fileUrl && item.fileUrl !== "#") {
+                              setPreviewMedia(item.fileUrl);
+                            }
+                          }}
+                        >
+                          <img src={item.fileUrl} alt={item.fileName} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {isAdmin && (
                     <div className="chatInfoAdminActions">
-                      <button
-                        type="button"
-                        className="popup-btn popup-btn-secondary"
-                        onClick={handleToggleBlock}
-                      >
+                      <button type="button" className="popup-btn popup-btn-secondary" onClick={handleToggleBlock}>
                         {chat.blocked ? "Unblock" : "Block"} Contact
                       </button>
 
-                      <button
-                        type="button"
-                        className="popup-btn popup-btn-danger"
-                        onClick={handleDeleteChat}
-                      >
+                      <button type="button" className="popup-btn popup-btn-danger" onClick={handleDeleteChat}>
                         Delete Chat
                       </button>
                     </div>
@@ -626,23 +716,37 @@ export default function ChatPage() {
 
             {chat.kind === "group" && (
               <>
-                <div className="groupInfoSectionCard">
+                <div
+                  className="groupInfoSectionCard mediaLinksDocsCard"
+                  onClick={() => setShowMediaPanel(true)}
+                  role="button"
+                  tabIndex={0}
+                >
                   <div className="groupInfoSectionTop">
                     <div className="groupInfoSectionTitle">Media, links and docs</div>
-                    <div className="groupInfoSectionCount">{demoMedia.length}</div>
+                    <div className="groupInfoSectionCount">{totalSharedCount}</div>
                   </div>
 
                   <div className="groupMediaPreviewRow">
-                    {demoMedia.map((media, index) => (
-                      <button
-                        key={index}
-                        type="button"
-                        className="groupMediaPreviewItem"
-                        onClick={() => setPreviewMedia(media)}
-                      >
-                        <img src={media} alt={`media-${index}`} />
-                      </button>
-                    ))}
+                    {mediaItems.slice(0, 2).length ? (
+                      mediaItems.slice(0, 2).map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className="groupMediaPreviewItem"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (item.fileUrl && item.fileUrl !== "#") {
+                              setPreviewMedia(item.fileUrl);
+                            }
+                          }}
+                        >
+                          <img src={item.fileUrl} alt={item.fileName} />
+                        </button>
+                      ))
+                    ) : (
+                      <div className="muted">No media, docs or links shared yet.</div>
+                    )}
                   </div>
                 </div>
 
@@ -777,21 +881,6 @@ export default function ChatPage() {
         </div>
       )}
 
-      {previewMedia && (
-        <div className="mediaPreviewOverlay" onClick={() => setPreviewMedia("")}>
-          <div className="mediaPreviewModal" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              className="mediaPreviewCloseBtn"
-              onClick={() => setPreviewMedia("")}
-            >
-              ✕
-            </button>
-            <img src={previewMedia} alt="Preview" className="mediaPreviewImage" />
-          </div>
-        </div>
-      )}
-
       <section className="messages" aria-label="Messages">
         {groups.map((g) => (
           <div key={g.day}>
@@ -837,6 +926,100 @@ export default function ChatPage() {
       </section>
 
       <footer className="composer">
+        <div className="composer-actions-left">
+          <div className="composer-action-wrapper">
+            <button
+              ref={attachBtnRef}
+              type="button"
+              className="composerActionBtn"
+              onClick={() => {
+                setShowAttachMenu((prev) => !prev);
+                setShowStickerMenu(false);
+              }}
+              title="Attach"
+              aria-label="Attach"
+              disabled={chat.blocked}
+            >
+              +
+            </button>
+
+            {showAttachMenu && (
+              <div ref={attachMenuRef} className="composerPopupMenu attachMenu">
+                <button
+                  type="button"
+                  className="composerPopupItem"
+                  onClick={() => handleAttachmentAction("image")}
+                >
+                  🖼 Image
+                </button>
+                <button
+                  type="button"
+                  className="composerPopupItem"
+                  onClick={() => handleAttachmentAction("document")}
+                >
+                  📄 Document
+                </button>
+                <button
+                  type="button"
+                  className="composerPopupItem"
+                  onClick={() => handleAttachmentAction("contact")}
+                >
+                  👤 Contact
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="composer-action-wrapper">
+            <button
+              ref={stickerBtnRef}
+              type="button"
+              className="composerActionBtn"
+              onClick={() => {
+                setShowStickerMenu((prev) => !prev);
+                setShowAttachMenu(false);
+              }}
+              title="Stickers"
+              aria-label="Stickers"
+              disabled={chat.blocked}
+            >
+              ☺
+            </button>
+
+            {showStickerMenu && (
+              <div ref={stickerMenuRef} className="composerPopupMenu stickerMenu">
+                <div className="stickerGrid">
+                  {stickerOptions.map((sticker, index) => (
+                    <button
+                      key={`${sticker}-${index}`}
+                      type="button"
+                      className="stickerBtn"
+                      onClick={() => handleStickerSelect(sticker)}
+                    >
+                      {sticker}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            className="hiddenFileInput"
+            onChange={handleImageSelected}
+          />
+
+          <input
+            ref={documentInputRef}
+            type="file"
+            className="hiddenFileInput"
+            onChange={handleDocumentSelected}
+          />
+        </div>
+
         <textarea
           className="composerInput"
           value={text}
@@ -865,6 +1048,142 @@ export default function ChatPage() {
           </svg>
         </button>
       </footer>
+
+      {showMediaPanel && (
+        <div className="mediaSharedOverlay">
+          <div className="mediaSharedPanel">
+            <div className="mediaSharedHeader">
+              <button
+                type="button"
+                className="iconBtn"
+                onClick={() => setShowMediaPanel(false)}
+              >
+                ←
+              </button>
+              <div className="mediaSharedTabs">
+                <button
+                  className={`mediaTabBtn ${activeMediaTab === "media" ? "active" : ""}`}
+                  onClick={() => setActiveMediaTab("media")}
+                >
+                  Media
+                </button>
+                <button
+                  className={`mediaTabBtn ${activeMediaTab === "docs" ? "active" : ""}`}
+                  onClick={() => setActiveMediaTab("docs")}
+                >
+                  Docs
+                </button>
+                <button
+                  className={`mediaTabBtn ${activeMediaTab === "links" ? "active" : ""}`}
+                  onClick={() => setActiveMediaTab("links")}
+                >
+                  Links
+                </button>
+              </div>
+            </div>
+
+            <div className="mediaSharedBody">
+              {activeMediaTab === "media" && (
+                <>
+                  {mediaItems.length ? (
+                    <div className="mediaSharedGrid">
+                      {mediaItems.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className="mediaSharedItem"
+                          onClick={() => item.fileUrl !== "#" && setPreviewMedia(item.fileUrl)}
+                        >
+                          <img src={item.fileUrl} alt={item.fileName} />
+                          <div className="mediaSharedLabel">{item.fileName}</div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mediaEmptyState">
+                      <h3>No media</h3>
+                      <p>Media shared in this chat will appear here.</p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {activeMediaTab === "docs" && (
+                <>
+                  {docItems.length ? (
+                    <div className="docsSharedList">
+                      {docItems.map((item) => (
+                        <a
+                          key={item.id}
+                          href={item.fileUrl || "#"}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="docsSharedItem"
+                        >
+                          <span>📄</span>
+                          <div>
+                            <strong>{item.fileName}</strong>
+                            <small>{item.fileUrl && item.fileUrl !== "#" ? "Open document" : "Sample document"}</small>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mediaEmptyState">
+                      <h3>No docs</h3>
+                      <p>Documents shared in this chat will appear here.</p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {activeMediaTab === "links" && (
+                <>
+                  {linkItems.length ? (
+                    <div className="docsSharedList">
+                      {linkItems.map((item) => (
+                        <a
+                          key={item.id}
+                          href={item.text}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="docsSharedItem"
+                        >
+                          <span>🔗</span>
+                          <div>
+                            <strong>{item.text}</strong>
+                            <small>Open link</small>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mediaEmptyState">
+                      <h3>No links</h3>
+                      <p>Links shared in this chat will appear here.</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewMedia && (
+        <div className="mediaPreviewOverlay" onClick={() => setPreviewMedia("")}>
+          <div className="mediaPreviewModal" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="mediaPreviewCloseBtn"
+              onClick={() => setPreviewMedia("")}
+            >
+              ✕
+            </button>
+            <img src={previewMedia} alt="Preview" className="mediaPreviewImage" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
