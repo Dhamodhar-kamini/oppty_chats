@@ -638,3 +638,11 @@
 }
 
 
+.sidebar {
+  z-index: 9999;
+}
+
+.profile-popup,
+.create-popup {
+  z-index: 10000;
+}

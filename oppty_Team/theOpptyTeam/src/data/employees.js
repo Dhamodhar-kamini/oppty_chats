@@ -17,9 +17,9 @@ export const employeeDB = [
   },
   {
     id: "emp-3",
-    email: "maya@oppty.com",
-    password: "maya123",
-    name: "Maya",
+    email: "dhamu@oppty.com",
+    password: "dhamu123",
+    name: "Dhamu",
     role: "employee",
     avatarUrl: "https://i.pravatar.cc/100?img=21",
   },

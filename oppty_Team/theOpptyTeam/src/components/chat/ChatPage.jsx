@@ -68,16 +68,18 @@ export default function ChatPage() {
   const isDesktop = useMediaQuery("(min-width: 900px)");
 
   const {
-    getChatById,
-    sendMessage,
-    sendAttachment,
-    updateChatName,
-    deleteChat,
-    toggleBlockChat,
-    addGroupMember,
-    removeGroupMember,
-    isAdmin,
-  } = useChats();
+  getChatById,
+  sendMessage,
+  sendAttachment,
+  updateChatName,
+  deleteChat,
+  toggleBlockChat,
+  addGroupMember,
+  removeGroupMember,
+  deleteMessageForMe,
+  deleteMessageForAll,
+  isAdmin,
+} = useChats();
 
   const chat = chatId ? getChatById(chatId) : null;
 
@@ -101,6 +103,10 @@ export default function ChatPage() {
 
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [showStickerMenu, setShowStickerMenu] = useState(false);
+
+  
+
+  const [replyingTo, setReplyingTo] = useState(null);
 
   const endRef = useRef(null);
   const optionsRef = useRef(null);
@@ -172,6 +178,10 @@ export default function ChatPage() {
   const totalSharedCount =
     uploadedMediaItems.length + uploadedDocItems.length + linkItems.length ||
     mediaItems.length + docItems.length + linkItems.length;
+
+  useEffect(() => {
+  setReplyingTo(null);
+}, [chatId]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -287,13 +297,14 @@ export default function ChatPage() {
   }
 
   const onSend = () => {
-    const v = text.trim();
-    if (!v || chat.blocked) return;
-    sendMessage(chat.id, v);
-    setText("");
-    setShowAttachMenu(false);
-    setShowStickerMenu(false);
-  };
+  const v = text.trim();
+  if (!v || chat.blocked) return;
+  sendMessage(chat.id, v, replyingTo);
+  setText("");
+  setReplyingTo(null);
+  setShowAttachMenu(false);
+  setShowStickerMenu(false);
+};
 
   const handleAttachmentAction = (type) => {
     if (chat.blocked) return;
@@ -313,7 +324,8 @@ export default function ChatPage() {
     if (!file || chat.blocked) return;
 
     const fileUrl = URL.createObjectURL(file);
-    sendAttachment(chat.id, "image", fileUrl, file.name);
+    sendAttachment(chat.id, "image", fileUrl, file.name, replyingTo);
+setReplyingTo(null);
 
     setShowAttachMenu(false);
     e.target.value = "";
@@ -324,7 +336,8 @@ export default function ChatPage() {
     if (!file || chat.blocked) return;
 
     const fileUrl = URL.createObjectURL(file);
-    sendAttachment(chat.id, "document", fileUrl, file.name);
+    sendAttachment(chat.id, "document", fileUrl, file.name, replyingTo);
+setReplyingTo(null);
 
     setShowAttachMenu(false);
     e.target.value = "";
@@ -449,6 +462,17 @@ export default function ChatPage() {
     setTimeout(() => membersFilterRef.current?.focus(), 250);
   };
 
+  const handleReplyMessage = (message) => {
+  setReplyingTo(message);
+};
+
+const handleDeleteForMe = (messageId) => {
+  deleteMessageForMe(chat.id, messageId);
+};
+
+const handleDeleteForAll = (messageId) => {
+  deleteMessageForAll(chat.id, messageId);
+};
   return (
     <div className="chat">
       <header className="chatHeader">
@@ -886,46 +910,70 @@ export default function ChatPage() {
           <div key={g.day}>
             <div className="dayChip">{g.day}</div>
 
-            {g.messages
-              .filter((m) =>
-                searchTerm.trim()
-                  ? m.text?.toLowerCase().includes(searchTerm.toLowerCase())
-                  : true
-              )
-              .map((m) => {
-                const isMatched =
-                  searchTerm.trim() &&
-                  m.text?.toLowerCase().includes(searchTerm.toLowerCase());
-                const matchedIndex = matchedMessages.findIndex((item) => item.id === m.id);
-                const isActiveMatched = matchedIndex === activeSearchIndex;
+            {g.messages.map((m) => {
+  const isMatched =
+    searchTerm.trim() &&
+    typeof m.text === "string" &&
+    m.text.toLowerCase().includes(searchTerm.toLowerCase());
 
-                return (
-                  <div
-                    key={m.id}
-                    ref={(el) => {
-                      messageRefs.current[m.id] = el;
-                    }}
-                    className={isActiveMatched ? "chatMatchedMessageActive" : ""}
-                  >
-                    <MessageBubble
-                      message={{
-                        ...m,
-                        text: isMatched ? (
-                          <HighlightText text={m.text} query={searchTerm} />
-                        ) : (
-                          m.text
-                        ),
-                      }}
-                    />
-                  </div>
-                );
-              })}
+  const matchedIndex = matchedMessages.findIndex((item) => item.id === m.id);
+  const isActiveMatched = isMatched && matchedIndex === activeSearchIndex;
+
+  return (
+    <div
+      key={m.id}
+      ref={(el) => {
+        messageRefs.current[m.id] = el;
+      }}
+      className={isActiveMatched ? "chatMatchedMessageActive" : ""}
+    >
+      <MessageBubble
+        message={{
+          ...m,
+          displayText: isMatched ? (
+            <HighlightText text={m.text} query={searchTerm} />
+          ) : (
+            m.text
+          ),
+        }}
+        onReply={() => handleReplyMessage(m)}
+        onDeleteForMe={() => handleDeleteForMe(m.id)}
+        onDeleteForAll={() => handleDeleteForAll(m.id)}
+        canDeleteForAll={m.sender === "me" || isAdmin}
+      />
+    </div>
+  );
+})}
           </div>
         ))}
         <div ref={endRef} />
       </section>
 
       <footer className="composer">
+      {replyingTo && (
+  <div className="waComposerReplyBar">
+    <div className="waComposerReplyAccent" />
+    <div className="waComposerReplyContent">
+      <div className="waComposerReplyTitle">
+        {replyingTo.sender === "me" ? "You" : chat.name}
+      </div>
+      <div className="waComposerReplyText">
+        {replyingTo.type === "image"
+          ? `🖼 ${replyingTo.fileName || "Photo"}`
+          : replyingTo.type === "document"
+          ? `📄 ${replyingTo.fileName || "Document"}`
+          : replyingTo.text}
+      </div>
+    </div>
+    <button
+      type="button"
+      className="waComposerReplyClose"
+      onClick={() => setReplyingTo(null)}
+    >
+      ✕
+    </button>
+  </div>
+)}
         <div className="composer-actions-left">
           <div className="composer-action-wrapper">
             <button

@@ -1,6 +1,6 @@
 import React from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
-import Sidebar from "./components/sidebar/Sidebar.jsx";
+import Sidebar from "./components/sidebar/sidebar.jsx";
 import ChatsLayout from "./components/chat/ChatsLayout.jsx";
 import EmptyState from "./components/chat/EmptyState.jsx";
 import ChatPage from "./components/chat/ChatPage.jsx";

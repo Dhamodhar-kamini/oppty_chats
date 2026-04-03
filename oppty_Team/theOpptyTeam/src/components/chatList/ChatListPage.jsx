@@ -62,20 +62,27 @@ export default function ChatListPage({ mode = "dm" }) {
       <div className="chatList" role="list">
         {filtered.map((chat) => {
           const last = chat.messages?.[chat.messages.length - 1];
+          const chatPath = chat.kind === "group" ? `/groups/${chat.id}` : `/chats/${chat.id}`;
 
           return (
             <NavLink
               key={chat.id}
-              to={chat.id}
+              to={chatPath}
               className={({ isActive }) => `chatRow ${isActive ? "active" : ""}`}
               role="listitem"
             >
-              <img className="avatar" src={chat.avatarUrl} alt="" />
+              <img className="avatar" src={chat.avatarUrl} alt={chat.name} />
 
               <div className="chatRowBody">
                 <div className="chatRowTop">
                   <div className="chatName">{chat.name}</div>
-                  <div className="chatTime">{formatTime(last?.createdAt)}</div>
+
+                  <div className="chatRowMetaRight">
+                    <div className="chatTime">{formatTime(last?.createdAt)}</div>
+                    {chat.unreadCount > 0 && (
+                      <span className="chatUnreadBadge">{chat.unreadCount}</span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="chatPreview">

@@ -6,7 +6,6 @@ export function getAuthUser() {
     return null;
   }
 }
-
 export function isAdminUser() {
   const user = getAuthUser();
   return user?.role === "admin";

@@ -8,6 +8,10 @@ function uid() {
   return crypto?.randomUUID?.() ?? `${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 
+function now() {
+  return Date.now();
+}
+
 function loadChats() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -19,6 +23,16 @@ function loadChats() {
 
 function saveChats(chats) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(chats));
+}
+
+function safeTime(value) {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed)) return parsed;
+
+  const dateValue = new Date(value).getTime();
+  if (Number.isFinite(dateValue)) return dateValue;
+
+  return now();
 }
 
 const seed = [
@@ -39,7 +53,9 @@ const seed = [
         sender: "them",
         type: "text",
         text: "Here are all the files. Let me know once you’ve had a look.",
-        createdAt: Date.now() - 1000 * 60 * 55,
+        createdAt: now() - 1000 * 60 * 55,
+        replyTo: null,
+        deletedForAll: false,
       },
       {
         id: uid(),
@@ -47,7 +63,9 @@ const seed = [
         sender: "me",
         type: "text",
         text: "Wow! Have great time. Enjoy.",
-        createdAt: Date.now() - 1000 * 60 * 52,
+        createdAt: now() - 1000 * 60 * 52,
+        replyTo: null,
+        deletedForAll: false,
       },
     ],
   },
@@ -68,7 +86,9 @@ const seed = [
         sender: "them",
         type: "text",
         text: "Video call later?",
-        createdAt: Date.now() - 1000 * 60 * 180,
+        createdAt: now() - 1000 * 60 * 180,
+        replyTo: null,
+        deletedForAll: false,
       },
       {
         id: uid(),
@@ -76,7 +96,9 @@ const seed = [
         sender: "me",
         type: "text",
         text: "Sure—send a time.",
-        createdAt: Date.now() - 1000 * 60 * 175,
+        createdAt: now() - 1000 * 60 * 175,
+        replyTo: null,
+        deletedForAll: false,
       },
     ],
   },
@@ -112,7 +134,9 @@ const seed = [
         sender: "them",
         type: "text",
         text: "Welcome to Oppty Team group!",
-        createdAt: Date.now() - 1000 * 60 * 300,
+        createdAt: now() - 1000 * 60 * 300,
+        replyTo: null,
+        deletedForAll: false,
       },
     ],
   },
@@ -131,10 +155,16 @@ function normalizeAndMerge(persisted) {
     members: Array.isArray(c.members) ? c.members : [],
     messages: Array.isArray(c.messages)
       ? c.messages.map((m) => ({
+          id: m.id ?? uid(),
+          chatId: m.chatId ?? c.id,
+          sender: m.sender ?? "them",
           type: m.type ?? "text",
+          text: m.text ?? "",
           fileUrl: m.fileUrl ?? "",
           fileName: m.fileName ?? "",
-          ...m,
+          replyTo: m.replyTo ?? null,
+          deletedForAll: m.deletedForAll ?? false,
+          createdAt: safeTime(m.createdAt),
         }))
       : [],
   }));
@@ -176,19 +206,25 @@ function reducer(state, action) {
         sender: "me",
         type: "text",
         text,
-        createdAt: Date.now(),
+        createdAt: now(),
+        replyTo: action.replyTo
+          ? {
+              id: action.replyTo.id,
+              text: action.replyTo.text || "",
+              sender: action.replyTo.sender || "them",
+              type: action.replyTo.type || "text",
+              fileName: action.replyTo.fileName || "",
+            }
+          : null,
+        deletedForAll: false,
       };
 
       const chats = state.chats.map((c) =>
         c.id === action.chatId ? { ...c, messages: [...c.messages, msg] } : c
       );
 
-      const updated = chats.find((c) => c.id === action.chatId);
-      const rest = chats.filter((c) => c.id !== action.chatId);
-      const next = updated ? [updated, ...rest] : chats;
-
-      saveChats(next);
-      return { chats: next };
+      saveChats(chats);
+      return { chats };
     }
 
     case "SEND_ATTACHMENT": {
@@ -203,36 +239,81 @@ function reducer(state, action) {
         text: action.fileName || "",
         fileUrl: action.fileUrl || "",
         fileName: action.fileName || "",
-        createdAt: Date.now(),
+        createdAt: now(),
+        replyTo: action.replyTo
+          ? {
+              id: action.replyTo.id,
+              text: action.replyTo.text || "",
+              sender: action.replyTo.sender || "them",
+              type: action.replyTo.type || "text",
+              fileName: action.replyTo.fileName || "",
+            }
+          : null,
+        deletedForAll: false,
       };
 
       const chats = state.chats.map((c) =>
         c.id === action.chatId ? { ...c, messages: [...c.messages, msg] } : c
       );
 
-      const updated = chats.find((c) => c.id === action.chatId);
-      const rest = chats.filter((c) => c.id !== action.chatId);
-      const next = updated ? [updated, ...rest] : chats;
+      saveChats(chats);
+      return { chats };
+    }
 
-      saveChats(next);
-      return { chats: next };
+    case "DELETE_MESSAGE_FOR_ME": {
+      const chats = state.chats.map((chat) => {
+        if (String(chat.id) !== String(action.chatId)) return chat;
+        return {
+          ...chat,
+          messages: (chat.messages || []).filter(
+            (msg) => String(msg.id) !== String(action.messageId)
+          ),
+        };
+      });
+
+      saveChats(chats);
+      return { chats };
+    }
+
+    case "DELETE_MESSAGE_FOR_ALL": {
+      const chats = state.chats.map((chat) => {
+        if (String(chat.id) !== String(action.chatId)) return chat;
+
+        return {
+          ...chat,
+          messages: (chat.messages || []).map((msg) => {
+            if (String(msg.id) !== String(action.messageId)) return msg;
+            if (msg.sender !== "me" && !isSystemAdmin()) return msg;
+
+            return {
+              ...msg,
+              type: "text",
+              text: "This message was deleted",
+              fileUrl: "",
+              fileName: "",
+              deletedForAll: true,
+            };
+          }),
+        };
+      });
+
+      saveChats(chats);
+      return { chats };
     }
 
     case "UPDATE_CHAT_NAME": {
       const name = action.name.trim();
       if (!name) return state;
 
-      const next = state.chats.map((chat) => {
+      const chats = state.chats.map((chat) => {
         if (String(chat.id) !== String(action.chatId)) return chat;
-
         if (isSystemAdmin()) return { ...chat, name };
         if (chat.kind === "group" && !chat.isAdmin) return chat;
-
         return { ...chat, name };
       });
 
-      saveChats(next);
-      return { chats: next };
+      saveChats(chats);
+      return { chats };
     }
 
     case "ADD_CONTACT": {
@@ -254,9 +335,9 @@ function reducer(state, action) {
         messages: [],
       };
 
-      const next = [newChat, ...state.chats];
-      saveChats(next);
-      return { chats: next };
+      const chats = [newChat, ...state.chats];
+      saveChats(chats);
+      return { chats };
     }
 
     case "ADD_GROUP": {
@@ -280,33 +361,33 @@ function reducer(state, action) {
         messages: [],
       };
 
-      const next = [newGroup, ...state.chats];
-      saveChats(next);
-      return { chats: next };
+      const chats = [newGroup, ...state.chats];
+      saveChats(chats);
+      return { chats };
     }
 
     case "DELETE_CHAT": {
       if (!isSystemAdmin()) return state;
-      const next = state.chats.filter((chat) => String(chat.id) !== String(action.chatId));
-      saveChats(next);
-      return { chats: next };
+      const chats = state.chats.filter((chat) => String(chat.id) !== String(action.chatId));
+      saveChats(chats);
+      return { chats };
     }
 
     case "TOGGLE_BLOCK_CHAT": {
       if (!isSystemAdmin()) return state;
-      const next = state.chats.map((chat) =>
+      const chats = state.chats.map((chat) =>
         String(chat.id) === String(action.chatId)
           ? { ...chat, blocked: !chat.blocked }
           : chat
       );
-      saveChats(next);
-      return { chats: next };
+      saveChats(chats);
+      return { chats };
     }
 
     case "ADD_GROUP_MEMBER": {
       if (!isSystemAdmin()) return state;
 
-      const next = state.chats.map((chat) => {
+      const chats = state.chats.map((chat) => {
         if (String(chat.id) !== String(action.chatId) || chat.kind !== "group") return chat;
 
         const exists = (chat.members || []).some(
@@ -320,14 +401,14 @@ function reducer(state, action) {
         };
       });
 
-      saveChats(next);
-      return { chats: next };
+      saveChats(chats);
+      return { chats };
     }
 
     case "REMOVE_GROUP_MEMBER": {
       if (!isSystemAdmin()) return state;
 
-      const next = state.chats.map((chat) => {
+      const chats = state.chats.map((chat) => {
         if (String(chat.id) !== String(action.chatId) || chat.kind !== "group") return chat;
 
         return {
@@ -338,8 +419,8 @@ function reducer(state, action) {
         };
       });
 
-      saveChats(next);
-      return { chats: next };
+      saveChats(chats);
+      return { chats };
     }
 
     default:
@@ -361,23 +442,27 @@ export function ChatProvider({ children }) {
     () => ({
       chats: state.chats,
       getChatById: (id) => state.chats.find((c) => String(c.id) === String(id)),
-      sendMessage: (chatId, text) => dispatch({ type: "SEND", chatId, text }),
-      sendAttachment: (chatId, attachmentType, fileUrl, fileName) =>
+      sendMessage: (chatId, text, replyTo = null) =>
+        dispatch({ type: "SEND", chatId, text, replyTo }),
+      sendAttachment: (chatId, attachmentType, fileUrl, fileName, replyTo = null) =>
         dispatch({
           type: "SEND_ATTACHMENT",
           chatId,
           attachmentType,
           fileUrl,
           fileName,
+          replyTo,
         }),
-      updateChatName: (chatId, name) =>
-        dispatch({ type: "UPDATE_CHAT_NAME", chatId, name }),
+      deleteMessageForMe: (chatId, messageId) =>
+        dispatch({ type: "DELETE_MESSAGE_FOR_ME", chatId, messageId }),
+      deleteMessageForAll: (chatId, messageId) =>
+        dispatch({ type: "DELETE_MESSAGE_FOR_ALL", chatId, messageId }),
+      updateChatName: (chatId, name) => dispatch({ type: "UPDATE_CHAT_NAME", chatId, name }),
       addContact: (payload) => dispatch({ type: "ADD_CONTACT", payload }),
       addGroup: (payload) => dispatch({ type: "ADD_GROUP", payload }),
       deleteChat: (chatId) => dispatch({ type: "DELETE_CHAT", chatId }),
       toggleBlockChat: (chatId) => dispatch({ type: "TOGGLE_BLOCK_CHAT", chatId }),
-      addGroupMember: (chatId, member) =>
-        dispatch({ type: "ADD_GROUP_MEMBER", chatId, member }),
+      addGroupMember: (chatId, member) => dispatch({ type: "ADD_GROUP_MEMBER", chatId, member }),
       removeGroupMember: (chatId, memberId) =>
         dispatch({ type: "REMOVE_GROUP_MEMBER", chatId, memberId }),
       resetChats: () => dispatch({ type: "RESET" }),
