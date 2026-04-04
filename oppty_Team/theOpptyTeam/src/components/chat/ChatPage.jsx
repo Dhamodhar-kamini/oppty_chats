@@ -6,6 +6,7 @@ import { employeeDB } from "../../data/employees";
 import MessageBubble from "./MessageBubble.jsx";
 import { getAuthUser } from "../../utils/auth.js";
 
+// Sync local storage to DB so new employees survive page reloads
 try {
   const savedEmps = JSON.parse(localStorage.getItem("opty_employees"));
   if (savedEmps && Array.isArray(savedEmps) && savedEmps.length >= employeeDB.length) {
@@ -14,6 +15,7 @@ try {
   }
 } catch(e) {}
 
+// Standard Helper Functions
 function formatDay(ts) {
   const date = new Date(ts);
   const today = new Date();
@@ -202,6 +204,18 @@ export default function ChatPage() {
   const docItems = uploadedDocItems;
   const totalSharedCount = mediaItems.length + docItems.length + linkItems.length;
 
+  // --- NEW: CALCULATE GROUPS IN COMMON ---
+  const commonGroups = useMemo(() => {
+    if (!chat || chat.kind !== "dm") return [];
+    const targetEmail = chat.contact; // In Context, DM contact is resolved to the other user's email
+    if (!targetEmail || targetEmail === "Not available") return [];
+    
+    return chats.filter(c => {
+      if (c.kind !== "group") return false;
+      return c.members?.some(m => m.email === targetEmail);
+    });
+  }, [chat, chats]);
+
   useEffect(() => {
     setReplyingTo(null); setEditingMessage(null); setSelectionMode(false); setSelectedMessages([]);
     setSearchOpen(false); setSearchTerm(""); setFilterSender(""); setFilterDate("");
@@ -233,18 +247,6 @@ export default function ChatPage() {
     document.addEventListener("mousedown", handleClickOutside); document.addEventListener("keydown", handleEscape);
     return () => { document.removeEventListener("mousedown", handleClickOutside); document.removeEventListener("keydown", handleEscape); };
   }, [searchOpen, showAttachMenu, showStickerMenu, selectionMode, mentionState.active]);
-
-  useEffect(() => {
-    if (!matchedMessages.length) { setActiveSearchIndex(0); return; }
-    if (activeSearchIndex >= matchedMessages.length) setActiveSearchIndex(0);
-  }, [matchedMessages, activeSearchIndex]);
-
-  useEffect(() => {
-    if (!matchedMessages.length) return;
-    const currentMatch = matchedMessages[activeSearchIndex];
-    const node = messageRefs.current[currentMatch.id];
-    if (node) node.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [activeSearchIndex, matchedMessages]);
 
   if (!chat) {
     return (
@@ -519,6 +521,31 @@ export default function ChatPage() {
                   <div className="chatInfoCardRow"><span className="chatInfoLabel">Phone / Email</span><strong className="chatInfoValue">{chat.contact || chat.email || "Not available"}</strong></div>
                   <div className="groupInfoSectionCard mediaLinksDocsCard" onClick={() => setShowMediaPanel(true)} role="button" tabIndex={0}><div className="groupInfoSectionTop"><div className="groupInfoSectionTitle">Media, links and docs</div><div className="groupInfoSectionCount">{totalSharedCount}</div></div><div className="groupMediaPreviewRow">{mediaItems.slice(0, 2).map((item) => (<button key={item.id} type="button" className="groupMediaPreviewItem" onClick={(e) => { e.stopPropagation(); if (item.fileUrl && item.fileUrl !== "#") setPreviewMedia(item.fileUrl); }}><img src={item.fileUrl} alt={item.fileName} /></button>))}</div></div>
                   
+                  {/* GROUPS IN COMMON SECTION (Added Here) */}
+                  {commonGroups.length > 0 && (
+                    <div className="groupInfoSectionCard mediaLinksDocsCard">
+                      <div className="groupInfoSectionTop" style={{marginBottom: 8}}>
+                        <div className="groupInfoSectionTitle">{commonGroups.length} group{commonGroups.length > 1 ? 's' : ''} in common</div>
+                      </div>
+                      <div className="groupMembersListWhatsapp" style={{margin: '0 -16px'}}>
+                        {commonGroups.map(grp => {
+                          const memberNames = grp.members.map(m => m.email === authUser?.email ? 'You' : m.name).join(', ');
+                          return (
+                            <div key={grp.id} className="groupMemberWhatsappItem" onClick={() => { handleCloseChatInfo(); navigate(`/groups/${grp.id}`); }} style={{ cursor: 'pointer', border: 'none' }}>
+                              <div className="groupMemberInfoWrap">
+                                <img src={grp.avatarUrl || "https://i.pravatar.cc/100"} alt={grp.name} className="groupMemberAvatar" />
+                                <div className="groupMemberInfo">
+                                  <div style={{display: 'flex', alignItems: 'center'}}><strong>{grp.name}</strong></div>
+                                  <span style={{ display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis' }}>{memberNames}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="groupInfoSectionCard">
                     <div className="groupInfoSectionTop" style={{marginBottom: 8}}><div className="groupInfoSectionTitle">Disappearing messages</div></div>
                     <div className="disappearingSettings">
@@ -571,8 +598,6 @@ export default function ChatPage() {
                             <img src={member.avatarUrl || "https://i.pravatar.cc/100"} alt={member.name} className="groupMemberAvatar" />
                             <div className="groupMemberInfo"><div style={{display: 'flex', alignItems: 'center'}}><strong>{member.name}</strong>{member.isAdmin && <span className="groupAdminBadge">Admin</span>}</div><span>{member.email}</span></div>
                           </div>
-                          
-                          {/* FIX: Ensure flex properties let buttons wrap correctly without squeezing */}
                           <div className="groupMemberRightMeta" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'flex-end', marginLeft: '12px' }}>
                             {canEditGroupInfo && member.email !== authUser?.email && !member.isAdmin && <button type="button" className="groupMemberActionBtn" onClick={() => handlePromoteAdmin(member.id)}>Make Admin</button>}
                             {canEditGroupInfo && member.email !== authUser?.email && member.isAdmin && <button type="button" className="groupMemberActionBtn" onClick={() => handleDemoteAdmin(member.id)}>Dismiss Admin</button>}
@@ -713,7 +738,6 @@ export default function ChatPage() {
                 ))}
               </div>
             )}
-            
             <div className="composer-action-wrapper">
               <button ref={attachBtnRef} type="button" className="composerActionBtn" onClick={() => { setShowAttachMenu((prev) => !prev); setShowStickerMenu(false); }} title="Attach" disabled={chat.blocked}>+</button>
               {showAttachMenu && (
@@ -755,7 +779,6 @@ export default function ChatPage() {
         </footer>
       )}
 
-      {/* Shared Media/Links/Docs Overlays... */}
       {showMediaPanel && (
         <div className="mediaSharedOverlay animatedFadeIn">
           <div className="mediaSharedPanel">
