@@ -2356,3 +2356,164 @@
   transition: background-color 0.4s ease, border-radius 0.4s ease;
   background-color: rgba(255, 107, 0, 0.1) !important;
 }
+
+
+/* ---- SELECTION MODE ---- */
+.waRow.selected {
+  background-color: rgba(0, 168, 132, 0.08);
+}
+
+.waSelectionArea {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px 0 14px;
+  cursor: pointer;
+}
+
+.waCheckbox {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: 2px solid var(--muted);
+  display: grid;
+  place-items: center;
+  color: white;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.waCheckbox.checked {
+  background-color: #00a884;
+  border-color: #00a884;
+}
+
+.selectionHeaderContent {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 16px;
+}
+
+.selectionCount {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.selectionActions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---- SWIPE TO REPLY ---- */
+.swipeReplyIcon {
+  position: absolute;
+  left: -10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  background: rgba(0,0,0,0.4);
+  color: white;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+/* ---- REACTIONS ---- */
+.waQuickReactions {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: #f0f2f5;
+  justify-content: space-between;
+}
+
+.reactionBtn {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  transition: transform 0.1s;
+}
+
+.reactionBtn:hover, .reactionBtn.active {
+  transform: scale(1.2);
+  background: #e2e8f0;
+}
+
+.waReactionsDisplay {
+  position: absolute;
+  bottom: -10px;
+  right: 10px;
+  display: flex;
+  gap: 2px;
+  background: white;
+  padding: 2px 4px;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  border: 1px solid var(--border);
+  z-index: 5;
+}
+
+.waBubble.mine .waReactionsDisplay {
+  right: auto;
+  left: 10px;
+  background: #d9fdd3;
+}
+
+.waReactionBadge {
+  font-size: 12px;
+}
+
+/* ---- PINNED BANNER & STAR ---- */
+.waStarIcon {
+  font-size: 10px;
+  margin-right: 4px;
+  opacity: 0.8;
+}
+
+.pinnedMessagesBanner {
+  background: #ffffff;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  z-index: 10;
+}
+
+.pinnedIcon {
+  font-size: 18px;
+  color: #667781;
+}
+
+.pinnedContent {
+  display: flex;
+  flex-direction: column;
+}
+
+.pinnedTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: #00a884;
+}
+
+.pinnedSnippet {
+  font-size: 13px;
+  color: #667781;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}

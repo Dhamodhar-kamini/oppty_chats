@@ -73,6 +73,9 @@ export default function ChatPage() {
     sendMessage,
     sendAttachment,
     editMessage,
+    toggleReaction,
+    toggleStar,
+    togglePin,
     updateChatName,
     deleteChat,
     toggleBlockChat,
@@ -109,9 +112,11 @@ export default function ChatPage() {
   const [replyingTo, setReplyingTo] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
   
-  // Modals state
+  // Modals & Advanced Interaction State
   const [forwardingMessage, setForwardingMessage] = useState(null);
   const [deletePrompt, setDeletePrompt] = useState(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedMessages, setSelectedMessages] = useState([]);
 
   const endRef = useRef(null);
   const optionsRef = useRef(null);
@@ -139,6 +144,21 @@ export default function ChatPage() {
     isAdmin || chat?.kind !== "group" || chat?.isAdmin === true;
 
   const memberCount = chat?.kind === "group" ? chat.members?.length || 0 : 0;
+
+  // Toggle message selection logic
+  const toggleSelection = (msgId) => {
+    setSelectedMessages(prev => 
+      prev.includes(msgId) ? prev.filter(id => id !== msgId) : [...prev, msgId]
+    );
+  };
+
+  useEffect(() => {
+    if (selectedMessages.length === 0 && selectionMode) {
+      setSelectionMode(false);
+    }
+  }, [selectedMessages, selectionMode]);
+
+  const pinnedMessages = chat?.messages?.filter(m => m.isPinned && !m.deletedForAll) || [];
 
   const availableEmployees = useMemo(() => {
     if (!chat || chat.kind !== "group") return [];
@@ -184,6 +204,8 @@ export default function ChatPage() {
   useEffect(() => {
     setReplyingTo(null);
     setEditingMessage(null);
+    setSelectionMode(false);
+    setSelectedMessages([]);
   }, [chatId]);
 
   useEffect(() => {
@@ -236,6 +258,11 @@ export default function ChatPage() {
         setShowStickerMenu(false);
         setForwardingMessage(null);
         setDeletePrompt(null);
+        
+        if (selectionMode) {
+          setSelectionMode(false);
+          setSelectedMessages([]);
+        }
 
         if (searchOpen) {
           setSearchOpen(false);
@@ -252,7 +279,7 @@ export default function ChatPage() {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [searchOpen, showAttachMenu, showStickerMenu]);
+  }, [searchOpen, showAttachMenu, showStickerMenu, selectionMode]);
 
   const matchedMessages = useMemo(() => {
     if (!chat?.messages?.length || !searchTerm.trim()) return [];
@@ -487,12 +514,21 @@ export default function ChatPage() {
 
   const handleForwardSubmit = (targetChatId) => {
     if (!forwardingMessage) return;
-    if (forwardingMessage.type === "text") {
-      sendMessage(targetChatId, forwardingMessage.text);
-    } else {
-      sendAttachment(targetChatId, forwardingMessage.type, forwardingMessage.fileUrl, forwardingMessage.fileName);
-    }
+    
+    // Normalize to array since it could be bulk or single
+    const messagesToForward = Array.isArray(forwardingMessage) ? forwardingMessage : [forwardingMessage];
+
+    messagesToForward.forEach(msg => {
+      if (msg.type === "text") {
+        sendMessage(targetChatId, msg.text);
+      } else {
+        sendAttachment(targetChatId, msg.type, msg.fileUrl, msg.fileName);
+      }
+    });
+    
     setForwardingMessage(null);
+    setSelectionMode(false);
+    setSelectedMessages([]);
   };
 
   const confirmDelete = () => {
@@ -500,6 +536,8 @@ export default function ChatPage() {
     if (deletePrompt.type === 'me') deleteMessageForMe(chat.id, deletePrompt.id);
     if (deletePrompt.type === 'all') deleteMessageForAll(chat.id, deletePrompt.id);
     setDeletePrompt(null);
+    setSelectionMode(false);
+    setSelectedMessages([]);
   };
 
   const handleScrollToMessage = (msgId) => {
@@ -513,89 +551,123 @@ export default function ChatPage() {
 
   return (
     <div className="chat">
-      <header className="chatHeader">
-        {!isDesktop && (
-          <button
-            className="iconBtn"
-            onClick={() => navigate("..", { relative: "path" })}
-            aria-label="Back"
-          >
-            ←
-          </button>
-        )}
-
-        <button
-          type="button"
-          className="chatProfileTrigger"
-          onClick={handleOpenChatInfo}
-          aria-label="Open profile info"
-          title="View profile"
-        >
-          <img className="avatar" src={chat.avatarUrl} alt={chat.name} />
-        </button>
-
-        <button
-          type="button"
-          className="chatHeaderIdentity"
-          onClick={handleOpenChatInfo}
-          aria-label="Open profile information"
-          title="View profile"
-        >
-          <div className="chatHeaderText">
-            <div className="chatHeaderName">{chat.name}</div>
-            <div className="chatHeaderMeta">
-              {chat.kind === "group"
-                ? `${memberCount} member${memberCount !== 1 ? "s" : ""}`
-                : chat.blocked
-                ? "blocked by admin"
-                : chat.isOnline
-                ? "online"
-                : chat.lastSeen
-                ? chat.lastSeen
-                : "offline"}
+      <header className={`chatHeader ${selectionMode ? 'selectionModeActive' : ''}`}>
+        {selectionMode ? (
+          <div className="selectionHeaderContent">
+            <button className="iconBtn" onClick={() => {setSelectionMode(false); setSelectedMessages([]);}}>✕</button>
+            <span className="selectionCount">{selectedMessages.length} selected</span>
+            <div className="selectionActions">
+              <button className="iconBtn" title="Star" onClick={() => {
+                selectedMessages.forEach(id => toggleStar(chat.id, id));
+                setSelectionMode(false);
+                setSelectedMessages([]);
+              }}>⭐</button>
+              <button className="iconBtn" title="Delete" onClick={() => setDeletePrompt({ id: selectedMessages, type: 'me' })}>🗑️</button>
+              <button className="iconBtn" title="Forward" onClick={() => {
+                const msgs = chat.messages.filter(m => selectedMessages.includes(m.id));
+                setForwardingMessage(msgs);
+              }}>↪</button>
             </div>
           </div>
-        </button>
-
-        <div className="chatHeaderActions" ref={optionsRef}>
-          <button className="iconBtn" onClick={handleOpenSearch}>⌕</button>
-          <button className="iconBtn" onClick={handleToggleOptions}>⋯</button>
-
-          {showOptionsMenu && (
-            <div className="chatOptionsMenu">
-              <button type="button" className="chatOptionsItem" onClick={handleOpenChatInfo}>
-                View chat info
+        ) : (
+          <>
+            {!isDesktop && (
+              <button
+                className="iconBtn"
+                onClick={() => navigate("..", { relative: "path" })}
+                aria-label="Back"
+              >
+                ←
               </button>
-              <button type="button" className="chatOptionsItem" onClick={handleCloseSearch}>
-                Clear search
-              </button>
-              <button type="button" className="chatOptionsItem" onClick={handleScrollToLatest}>
-                Scroll to latest
-              </button>
+            )}
 
-              {isAdmin && (
-                <>
-                  <button type="button" className="chatOptionsItem" onClick={handleToggleBlock}>
-                    {chat.blocked ? "Unblock" : "Block"}{" "}
-                    {chat.kind === "group" ? "group" : "contact"}
+            <button
+              type="button"
+              className="chatProfileTrigger"
+              onClick={handleOpenChatInfo}
+              aria-label="Open profile info"
+              title="View profile"
+            >
+              <img className="avatar" src={chat.avatarUrl} alt={chat.name} />
+            </button>
+
+            <button
+              type="button"
+              className="chatHeaderIdentity"
+              onClick={handleOpenChatInfo}
+              aria-label="Open profile information"
+              title="View profile"
+            >
+              <div className="chatHeaderText">
+                <div className="chatHeaderName">{chat.name}</div>
+                <div className="chatHeaderMeta">
+                  {chat.kind === "group"
+                    ? `${memberCount} member${memberCount !== 1 ? "s" : ""}`
+                    : chat.blocked
+                    ? "blocked by admin"
+                    : chat.isOnline
+                    ? "online"
+                    : chat.lastSeen
+                    ? chat.lastSeen
+                    : "offline"}
+                </div>
+              </div>
+            </button>
+
+            <div className="chatHeaderActions" ref={optionsRef}>
+              <button className="iconBtn" onClick={handleOpenSearch}>⌕</button>
+              <button className="iconBtn" onClick={handleToggleOptions}>⋯</button>
+
+              {showOptionsMenu && (
+                <div className="chatOptionsMenu">
+                  <button type="button" className="chatOptionsItem" onClick={handleOpenChatInfo}>
+                    View chat info
                   </button>
-                  <button
-                    type="button"
-                    className="chatOptionsItem chatOptionsItemDanger"
-                    onClick={handleDeleteChat}
-                  >
-                    Delete {chat.kind === "group" ? "group" : "chat"}
+                  <button type="button" className="chatOptionsItem" onClick={() => {setSelectionMode(true); setShowOptionsMenu(false);}}>
+                    Select messages
                   </button>
-                </>
+                  <button type="button" className="chatOptionsItem" onClick={handleCloseSearch}>
+                    Clear search
+                  </button>
+                  <button type="button" className="chatOptionsItem" onClick={handleScrollToLatest}>
+                    Scroll to latest
+                  </button>
+
+                  {isAdmin && (
+                    <>
+                      <button type="button" className="chatOptionsItem" onClick={handleToggleBlock}>
+                        {chat.blocked ? "Unblock" : "Block"}{" "}
+                        {chat.kind === "group" ? "group" : "contact"}
+                      </button>
+                      <button
+                        type="button"
+                        className="chatOptionsItem chatOptionsItemDanger"
+                        onClick={handleDeleteChat}
+                      >
+                        Delete {chat.kind === "group" ? "group" : "chat"}
+                      </button>
+                    </>
+                  )}
+
+                  <button type="button" className="chatOptionsItem" onClick={() => setShowOptionsMenu(false)}>
+                    Close
+                  </button>
+                </div>
               )}
-
-              <button type="button" className="chatOptionsItem" onClick={() => setShowOptionsMenu(false)}>
-                Close
-              </button>
             </div>
-          )}
-        </div>
+          </>
+        )}
       </header>
+
+      {!selectionMode && pinnedMessages.length > 0 && (
+        <div className="pinnedMessagesBanner" onClick={() => handleScrollToMessage(pinnedMessages[0].id)}>
+          <div className="pinnedIcon">📌</div>
+          <div className="pinnedContent">
+            <div className="pinnedTitle">Pinned Message</div>
+            <div className="pinnedSnippet">{pinnedMessages[0].text || "Attachment"}</div>
+          </div>
+        </div>
+      )}
 
       {searchOpen && (
         <div className="chatSearchBar">
@@ -628,7 +700,6 @@ export default function ChatPage() {
             className="chatInfoDrawer whatsappGroupInfoDrawer"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Same info drawer content as original... */}
             <div className="chatInfoDrawerHeader whatsappGroupInfoHeader">
               <button type="button" className="iconBtn" onClick={handleCloseChatInfo}>←</button>
               <div className="chatInfoDrawerTitle">
@@ -975,6 +1046,15 @@ export default function ChatPage() {
                         m.text
                       ),
                     }}
+                    selectionMode={selectionMode}
+                    isSelected={selectedMessages.includes(m.id)}
+                    onToggleSelect={() => {
+                      setSelectionMode(true);
+                      toggleSelection(m.id);
+                    }}
+                    onReaction={(emoji) => toggleReaction(chat.id, m.id, emoji)}
+                    onStar={() => toggleStar(chat.id, m.id)}
+                    onPin={() => togglePin(chat.id, m.id)}
                     onReply={() => handleReplyMessage(m)}
                     onEdit={() => handleEditMessage(m)}
                     onForward={() => setForwardingMessage(m)}
