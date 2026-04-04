@@ -1,4 +1,3 @@
-// @refresh reset
 import React, { createContext, useContext, useEffect, useMemo, useReducer } from "react";
 import { getAuthUser } from "../utils/auth.js";
 
@@ -56,6 +55,7 @@ const seed = [
         createdAt: now() - 1000 * 60 * 55,
         replyTo: null,
         deletedForAll: false,
+        status: "read"
       },
       {
         id: uid(),
@@ -66,6 +66,7 @@ const seed = [
         createdAt: now() - 1000 * 60 * 52,
         replyTo: null,
         deletedForAll: false,
+        status: "read"
       },
     ],
   },
@@ -89,6 +90,7 @@ const seed = [
         createdAt: now() - 1000 * 60 * 180,
         replyTo: null,
         deletedForAll: false,
+        status: "read"
       },
       {
         id: uid(),
@@ -99,6 +101,7 @@ const seed = [
         createdAt: now() - 1000 * 60 * 175,
         replyTo: null,
         deletedForAll: false,
+        status: "read"
       },
     ],
   },
@@ -137,6 +140,7 @@ const seed = [
         createdAt: now() - 1000 * 60 * 300,
         replyTo: null,
         deletedForAll: false,
+        status: "read"
       },
     ],
   },
@@ -165,6 +169,8 @@ function normalizeAndMerge(persisted) {
           replyTo: m.replyTo ?? null,
           deletedForAll: m.deletedForAll ?? false,
           createdAt: safeTime(m.createdAt),
+          isEdited: m.isEdited ?? false,
+          status: m.status ?? "read"
         }))
       : [],
   }));
@@ -217,6 +223,7 @@ function reducer(state, action) {
             }
           : null,
         deletedForAll: false,
+        status: "read", // Simulated immediate read for UI
       };
 
       const chats = state.chats.map((c) =>
@@ -250,11 +257,30 @@ function reducer(state, action) {
             }
           : null,
         deletedForAll: false,
+        status: "read",
       };
 
       const chats = state.chats.map((c) =>
         c.id === action.chatId ? { ...c, messages: [...c.messages, msg] } : c
       );
+
+      saveChats(chats);
+      return { chats };
+    }
+
+    case "EDIT_MESSAGE": {
+      const text = action.text.trim();
+      if (!text) return state;
+
+      const chats = state.chats.map((c) => {
+        if (c.id !== action.chatId) return c;
+        return {
+          ...c,
+          messages: c.messages.map((m) =>
+            m.id === action.messageId ? { ...m, text, isEdited: true } : m
+          ),
+        };
+      });
 
       saveChats(chats);
       return { chats };
@@ -453,6 +479,8 @@ export function ChatProvider({ children }) {
           fileName,
           replyTo,
         }),
+      editMessage: (chatId, messageId, text) =>
+        dispatch({ type: "EDIT_MESSAGE", chatId, messageId, text }),
       deleteMessageForMe: (chatId, messageId) =>
         dispatch({ type: "DELETE_MESSAGE_FOR_ME", chatId, messageId }),
       deleteMessageForAll: (chatId, messageId) =>

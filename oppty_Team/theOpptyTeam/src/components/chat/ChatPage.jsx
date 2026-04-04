@@ -68,18 +68,20 @@ export default function ChatPage() {
   const isDesktop = useMediaQuery("(min-width: 900px)");
 
   const {
-  getChatById,
-  sendMessage,
-  sendAttachment,
-  updateChatName,
-  deleteChat,
-  toggleBlockChat,
-  addGroupMember,
-  removeGroupMember,
-  deleteMessageForMe,
-  deleteMessageForAll,
-  isAdmin,
-} = useChats();
+    chats,
+    getChatById,
+    sendMessage,
+    sendAttachment,
+    editMessage,
+    updateChatName,
+    deleteChat,
+    toggleBlockChat,
+    addGroupMember,
+    removeGroupMember,
+    deleteMessageForMe,
+    deleteMessageForAll,
+    isAdmin,
+  } = useChats();
 
   const chat = chatId ? getChatById(chatId) : null;
 
@@ -104,9 +106,12 @@ export default function ChatPage() {
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [showStickerMenu, setShowStickerMenu] = useState(false);
 
-  
-
   const [replyingTo, setReplyingTo] = useState(null);
+  const [editingMessage, setEditingMessage] = useState(null);
+  
+  // Modals state
+  const [forwardingMessage, setForwardingMessage] = useState(null);
+  const [deletePrompt, setDeletePrompt] = useState(null);
 
   const endRef = useRef(null);
   const optionsRef = useRef(null);
@@ -137,9 +142,7 @@ export default function ChatPage() {
 
   const availableEmployees = useMemo(() => {
     if (!chat || chat.kind !== "group") return [];
-
     const memberIds = new Set((chat.members || []).map((m) => String(m.id)));
-
     return employeeDB
       .filter((emp) => emp.role === "employee")
       .filter((emp) => !memberIds.has(String(emp.id)))
@@ -152,7 +155,6 @@ export default function ChatPage() {
 
   const filteredGroupMembers = useMemo(() => {
     if (!chat || chat.kind !== "group") return [];
-
     return (chat.members || []).filter((member) =>
       groupMemberFilter.trim()
         ? `${member.name} ${member.email}`.toLowerCase().includes(groupMemberFilter.toLowerCase())
@@ -180,8 +182,9 @@ export default function ChatPage() {
     mediaItems.length + docItems.length + linkItems.length;
 
   useEffect(() => {
-  setReplyingTo(null);
-}, [chatId]);
+    setReplyingTo(null);
+    setEditingMessage(null);
+  }, [chatId]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -231,6 +234,8 @@ export default function ChatPage() {
         setShowMediaPanel(false);
         setShowAttachMenu(false);
         setShowStickerMenu(false);
+        setForwardingMessage(null);
+        setDeletePrompt(null);
 
         if (searchOpen) {
           setSearchOpen(false);
@@ -297,14 +302,21 @@ export default function ChatPage() {
   }
 
   const onSend = () => {
-  const v = text.trim();
-  if (!v || chat.blocked) return;
-  sendMessage(chat.id, v, replyingTo);
-  setText("");
-  setReplyingTo(null);
-  setShowAttachMenu(false);
-  setShowStickerMenu(false);
-};
+    const v = text.trim();
+    if (!v || chat.blocked) return;
+
+    if (editingMessage) {
+      editMessage(chat.id, editingMessage.id, v);
+      setEditingMessage(null);
+    } else {
+      sendMessage(chat.id, v, replyingTo);
+    }
+    
+    setText("");
+    setReplyingTo(null);
+    setShowAttachMenu(false);
+    setShowStickerMenu(false);
+  };
 
   const handleAttachmentAction = (type) => {
     if (chat.blocked) return;
@@ -325,7 +337,7 @@ export default function ChatPage() {
 
     const fileUrl = URL.createObjectURL(file);
     sendAttachment(chat.id, "image", fileUrl, file.name, replyingTo);
-setReplyingTo(null);
+    setReplyingTo(null);
 
     setShowAttachMenu(false);
     e.target.value = "";
@@ -337,7 +349,7 @@ setReplyingTo(null);
 
     const fileUrl = URL.createObjectURL(file);
     sendAttachment(chat.id, "document", fileUrl, file.name, replyingTo);
-setReplyingTo(null);
+    setReplyingTo(null);
 
     setShowAttachMenu(false);
     e.target.value = "";
@@ -463,16 +475,42 @@ setReplyingTo(null);
   };
 
   const handleReplyMessage = (message) => {
-  setReplyingTo(message);
-};
+    setReplyingTo(message);
+    setEditingMessage(null);
+  };
 
-const handleDeleteForMe = (messageId) => {
-  deleteMessageForMe(chat.id, messageId);
-};
+  const handleEditMessage = (message) => {
+    setEditingMessage(message);
+    setText(message.text);
+    setReplyingTo(null);
+  };
 
-const handleDeleteForAll = (messageId) => {
-  deleteMessageForAll(chat.id, messageId);
-};
+  const handleForwardSubmit = (targetChatId) => {
+    if (!forwardingMessage) return;
+    if (forwardingMessage.type === "text") {
+      sendMessage(targetChatId, forwardingMessage.text);
+    } else {
+      sendAttachment(targetChatId, forwardingMessage.type, forwardingMessage.fileUrl, forwardingMessage.fileName);
+    }
+    setForwardingMessage(null);
+  };
+
+  const confirmDelete = () => {
+    if (!deletePrompt) return;
+    if (deletePrompt.type === 'me') deleteMessageForMe(chat.id, deletePrompt.id);
+    if (deletePrompt.type === 'all') deleteMessageForAll(chat.id, deletePrompt.id);
+    setDeletePrompt(null);
+  };
+
+  const handleScrollToMessage = (msgId) => {
+    const node = messageRefs.current[msgId];
+    if (node) {
+      node.scrollIntoView({ behavior: "smooth", block: "center" });
+      node.classList.add("chatMatchedMessageActive");
+      setTimeout(() => node.classList.remove("chatMatchedMessageActive"), 1500);
+    }
+  };
+
   return (
     <div className="chat">
       <header className="chatHeader">
@@ -590,6 +628,7 @@ const handleDeleteForAll = (messageId) => {
             className="chatInfoDrawer whatsappGroupInfoDrawer"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Same info drawer content as original... */}
             <div className="chatInfoDrawerHeader whatsappGroupInfoHeader">
               <button type="button" className="iconBtn" onClick={handleCloseChatInfo}>←</button>
               <div className="chatInfoDrawerTitle">
@@ -911,69 +950,93 @@ const handleDeleteForAll = (messageId) => {
             <div className="dayChip">{g.day}</div>
 
             {g.messages.map((m) => {
-  const isMatched =
-    searchTerm.trim() &&
-    typeof m.text === "string" &&
-    m.text.toLowerCase().includes(searchTerm.toLowerCase());
+              const isMatched =
+                searchTerm.trim() &&
+                typeof m.text === "string" &&
+                m.text.toLowerCase().includes(searchTerm.toLowerCase());
 
-  const matchedIndex = matchedMessages.findIndex((item) => item.id === m.id);
-  const isActiveMatched = isMatched && matchedIndex === activeSearchIndex;
+              const matchedIndex = matchedMessages.findIndex((item) => item.id === m.id);
+              const isActiveMatched = isMatched && matchedIndex === activeSearchIndex;
 
-  return (
-    <div
-      key={m.id}
-      ref={(el) => {
-        messageRefs.current[m.id] = el;
-      }}
-      className={isActiveMatched ? "chatMatchedMessageActive" : ""}
-    >
-      <MessageBubble
-        message={{
-          ...m,
-          displayText: isMatched ? (
-            <HighlightText text={m.text} query={searchTerm} />
-          ) : (
-            m.text
-          ),
-        }}
-        onReply={() => handleReplyMessage(m)}
-        onDeleteForMe={() => handleDeleteForMe(m.id)}
-        onDeleteForAll={() => handleDeleteForAll(m.id)}
-        canDeleteForAll={m.sender === "me" || isAdmin}
-      />
-    </div>
-  );
-})}
+              return (
+                <div
+                  key={m.id}
+                  ref={(el) => {
+                    messageRefs.current[m.id] = el;
+                  }}
+                  className={isActiveMatched ? "chatMatchedMessageActive" : ""}
+                >
+                  <MessageBubble
+                    message={{
+                      ...m,
+                      displayText: isMatched ? (
+                        <HighlightText text={m.text} query={searchTerm} />
+                      ) : (
+                        m.text
+                      ),
+                    }}
+                    onReply={() => handleReplyMessage(m)}
+                    onEdit={() => handleEditMessage(m)}
+                    onForward={() => setForwardingMessage(m)}
+                    onDeleteForMe={() => setDeletePrompt({ id: m.id, type: 'me' })}
+                    onDeleteForAll={() => setDeletePrompt({ id: m.id, type: 'all' })}
+                    canDeleteForAll={m.sender === "me" || isAdmin}
+                    onScrollToReply={handleScrollToMessage}
+                    onPreviewImage={(url) => setPreviewMedia(url)}
+                  />
+                </div>
+              );
+            })}
           </div>
         ))}
         <div ref={endRef} />
       </section>
 
       <footer className="composer">
-      {replyingTo && (
-  <div className="waComposerReplyBar">
-    <div className="waComposerReplyAccent" />
-    <div className="waComposerReplyContent">
-      <div className="waComposerReplyTitle">
-        {replyingTo.sender === "me" ? "You" : chat.name}
-      </div>
-      <div className="waComposerReplyText">
-        {replyingTo.type === "image"
-          ? `🖼 ${replyingTo.fileName || "Photo"}`
-          : replyingTo.type === "document"
-          ? `📄 ${replyingTo.fileName || "Document"}`
-          : replyingTo.text}
-      </div>
-    </div>
-    <button
-      type="button"
-      className="waComposerReplyClose"
-      onClick={() => setReplyingTo(null)}
-    >
-      ✕
-    </button>
-  </div>
-)}
+        {replyingTo && (
+          <div className="waComposerReplyBar">
+            <div className="waComposerReplyAccent" />
+            <div className="waComposerReplyContent">
+              <div className="waComposerReplyTitle">
+                {replyingTo.sender === "me" ? "You" : chat.name}
+              </div>
+              <div className="waComposerReplyText">
+                {replyingTo.type === "image"
+                  ? `🖼 ${replyingTo.fileName || "Photo"}`
+                  : replyingTo.type === "document"
+                  ? `📄 ${replyingTo.fileName || "Document"}`
+                  : replyingTo.text}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="waComposerReplyClose"
+              onClick={() => setReplyingTo(null)}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {editingMessage && (
+          <div className="waComposerReplyBar">
+            <div className="waComposerReplyAccent" />
+            <div className="waComposerReplyContent">
+              <div className="waComposerReplyTitle">Editing message</div>
+              <div className="waComposerReplyText">
+                {editingMessage.text}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="waComposerReplyClose"
+              onClick={() => { setEditingMessage(null); setText(""); }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         <div className="composer-actions-left">
           <div className="composer-action-wrapper">
             <button
@@ -1072,7 +1135,7 @@ const handleDeleteForAll = (messageId) => {
           className="composerInput"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder={chat.blocked ? "This chat is blocked by admin" : "Type a message"}
+          placeholder={chat.blocked ? "This chat is blocked by admin" : editingMessage ? "Edit message" : "Type a message"}
           rows={1}
           disabled={chat.blocked}
           onKeyDown={(e) => {
@@ -1213,6 +1276,40 @@ const handleDeleteForAll = (messageId) => {
                   )}
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletePrompt && (
+        <div className="mediaPreviewOverlay" onClick={() => setDeletePrompt(null)}>
+          <div className="customModal" onClick={(e) => e.stopPropagation()}>
+            <h3 className="customModalTitle">Delete Message?</h3>
+            <p className="customModalText">Are you sure you want to delete this message {deletePrompt.type === 'all' ? "for everyone" : "for yourself"}?</p>
+            <div className="customModalActions">
+              <button className="popup-btn popup-btn-secondary" onClick={() => setDeletePrompt(null)}>Cancel</button>
+              <button className="popup-btn popup-btn-danger" onClick={confirmDelete}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Forward Modal */}
+      {forwardingMessage && (
+        <div className="mediaPreviewOverlay" onClick={() => setForwardingMessage(null)}>
+          <div className="customModal forwardModal" onClick={(e) => e.stopPropagation()}>
+            <div className="forwardModalHeader">
+              <h3 className="customModalTitle">Forward to...</h3>
+              <button className="iconBtn" onClick={() => setForwardingMessage(null)}>✕</button>
+            </div>
+            <div className="forwardChatList">
+              {chats.map(c => (
+                <div key={c.id} className="forwardChatRow" onClick={() => handleForwardSubmit(c.id)}>
+                  <img src={c.avatarUrl} alt={c.name} className="forwardChatAvatar" />
+                  <div className="forwardChatName">{c.name}</div>
+                </div>
+              ))}
             </div>
           </div>
         </div>

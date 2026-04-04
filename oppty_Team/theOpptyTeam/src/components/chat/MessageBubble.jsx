@@ -15,11 +15,11 @@ function isPlainLink(text) {
   return typeof text === "string" && /^https?:\/\//i.test(text);
 }
 
-function ReplySnippet({ replyTo }) {
+function ReplySnippet({ replyTo, onClick }) {
   if (!replyTo) return null;
 
   return (
-    <div className="waReplySnippet">
+    <div className="waReplySnippet" onClick={onClick} style={{ cursor: onClick ? "pointer" : "default" }}>
       <div className="waReplyBar" />
       <div className="waReplyBody">
         <div className="waReplyTitle">{replyTo.sender === "me" ? "You" : "Reply"}</div>
@@ -38,9 +38,13 @@ function ReplySnippet({ replyTo }) {
 export default function MessageBubble({
   message,
   onReply,
+  onEdit,
+  onForward,
   onDeleteForMe,
   onDeleteForAll,
   canDeleteForAll,
+  onScrollToReply,
+  onPreviewImage,
 }) {
   const isMine = message.sender === "me";
   const [showMenu, setShowMenu] = useState(false);
@@ -57,6 +61,11 @@ export default function MessageBubble({
     return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
+  const handleCopy = () => {
+    if (message.text) navigator.clipboard.writeText(message.text);
+    setShowMenu(false);
+  };
+
   const displayContent = () => {
     if (message.type === "image") {
       return (
@@ -65,6 +74,8 @@ export default function MessageBubble({
             src={message.fileUrl}
             alt={message.fileName || "Uploaded image"}
             className="chatAttachmentImage"
+            onClick={() => onPreviewImage?.(message.fileUrl)}
+            style={{ cursor: "pointer" }}
           />
           {message.fileName ? (
             <div className="chatAttachmentName">{message.fileName}</div>
@@ -126,27 +137,74 @@ export default function MessageBubble({
             ▾
           </button>
 
-          <ReplySnippet replyTo={message.replyTo} />
+          <ReplySnippet 
+            replyTo={message.replyTo} 
+            onClick={() => message.replyTo && onScrollToReply?.(message.replyTo.id)} 
+          />
 
           {displayContent()}
 
           <div className="waBubbleFooter">
+            {message.isEdited && <span className="waEdited">Edited</span>}
             <span className="waTime">{formatTime(message.createdAt)}</span>
+            {isMine && !message.deletedForAll && (
+              <span className={`waStatus ${message.status || "sent"}`}>
+                {message.status === 'sent' ? '✓' : '✓✓'}
+              </span>
+            )}
           </div>
         </div>
 
         {showMenu && (
           <div className={`waBubbleMenu ${isMine ? "mine" : "theirs"}`}>
-            <button
-              type="button"
-              className="waBubbleMenuItem"
-              onClick={() => {
-                onReply?.();
-                setShowMenu(false);
-              }}
-            >
-              Reply
-            </button>
+            {!message.deletedForAll && (
+               <button
+                 type="button"
+                 className="waBubbleMenuItem"
+                 onClick={() => {
+                   onReply?.();
+                   setShowMenu(false);
+                 }}
+               >
+                 Reply
+               </button>
+            )}
+
+            {!message.deletedForAll && isMine && message.type === 'text' && (
+              <button
+                type="button"
+                className="waBubbleMenuItem"
+                onClick={() => {
+                  onEdit?.();
+                  setShowMenu(false);
+                }}
+              >
+                Edit
+              </button>
+            )}
+
+            {!message.deletedForAll && message.text && (
+              <button
+                type="button"
+                className="waBubbleMenuItem"
+                onClick={handleCopy}
+              >
+                Copy
+              </button>
+            )}
+
+            {!message.deletedForAll && (
+              <button
+                type="button"
+                className="waBubbleMenuItem"
+                onClick={() => {
+                  onForward?.(message);
+                  setShowMenu(false);
+                }}
+              >
+                Forward
+              </button>
+            )}
 
             <button
               type="button"
