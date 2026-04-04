@@ -18,12 +18,20 @@ function ReplySnippet({ replyTo, onClick }) {
     <div className="waReplySnippet" onClick={onClick} style={{ cursor: onClick ? "pointer" : "default" }}>
       <div className="waReplyBar" />
       <div className="waReplyBody">
-        <div className="waReplyTitle">{replyTo.sender === "me" ? "You" : "Reply"}</div>
+        <div className="waReplyTitle">{replyTo.senderName || "Reply"}</div>
         <div className="waReplyMessage">
           {replyTo.type === "image" ? `🖼 ${replyTo.fileName || "Photo"}` : replyTo.type === "document" ? `📄 ${replyTo.fileName || "Document"}` : replyTo.text || "Message"}
         </div>
       </div>
     </div>
+  );
+}
+
+function renderTextWithMentions(text) {
+  if (typeof text !== 'string') return text;
+  const parts = text.split(/(@[a-zA-Z0-9_]+)/g);
+  return parts.map((part, i) => 
+    part.startsWith('@') ? <span key={i} className="waMention">{part}</span> : part
   );
 }
 
@@ -36,11 +44,8 @@ export default function MessageBubble({
   const [showMenu, setShowMenu] = useState(false);
   const wrapRef = useRef(null);
   
-  // Swipe to reply states
   const [swipeX, setSwipeX] = useState(0);
   const touchStartX = useRef(null);
-  
-  // Long press timer
   const longPressTimer = useRef(null);
 
   useEffect(() => {
@@ -53,10 +58,18 @@ export default function MessageBubble({
     return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
+  // Early return for pure system messages
+  if (message.type === "system") {
+    return (
+      <div className="waSystemMessageWrap">
+        <div className="waSystemMessage">{message.text}</div>
+      </div>
+    );
+  }
+
   const handleTouchStart = (e) => {
     if (selectionMode) return;
     touchStartX.current = e.touches[0].clientX;
-    
     longPressTimer.current = setTimeout(() => {
       setShowMenu(true);
       if (window.navigator && window.navigator.vibrate) navigator.vibrate(50);
@@ -65,14 +78,9 @@ export default function MessageBubble({
 
   const handleTouchMove = (e) => {
     if (selectionMode || touchStartX.current === null) return;
-    
-    // Cancel long press if user is scrolling/swiping
     clearTimeout(longPressTimer.current);
-    
     const deltaX = e.touches[0].clientX - touchStartX.current;
-    if (deltaX > 0 && deltaX < 80) { // Only swipe right, max 80px
-      setSwipeX(deltaX);
-    }
+    if (deltaX > 0 && deltaX < 80) setSwipeX(deltaX);
   };
 
   const handleTouchEnd = () => {
@@ -91,17 +99,15 @@ export default function MessageBubble({
   };
 
   const handleBubbleClick = () => {
-    if (selectionMode) {
-      onToggleSelect?.();
-    }
+    if (selectionMode) onToggleSelect?.();
   };
 
   const displayContent = () => {
     if (message.type === "image") {
       return (
         <div className="waAttachmentWrap">
-          <img src={message.fileUrl} alt={message.fileName || "Uploaded image"} className="chatAttachmentImage" onClick={(e) => { if(!selectionMode) onPreviewImage?.(message.fileUrl); }} style={{ cursor: selectionMode ? 'default' : "pointer" }} />
-          {message.fileName ? <div className="chatAttachmentName">{message.fileName}</div> : null}
+          <img src={message.fileUrl} alt={message.fileName || "Uploaded image"} className="chatAttachmentImage" onClick={() => { if(!selectionMode) onPreviewImage?.(message.fileUrl); }} style={{ cursor: selectionMode ? 'default' : "pointer" }} />
+          {message.fileName && <div className="chatAttachmentName">{message.fileName}</div>}
         </div>
       );
     }
@@ -119,7 +125,7 @@ export default function MessageBubble({
     if (!message.deletedForAll && isPlainLink(message.text)) {
       return <a href={message.text} target="_blank" rel="noreferrer" className="chatLinkPreview" onClick={(e) => selectionMode && e.preventDefault()}>{message.displayText ?? message.text}</a>;
     }
-    return <div className={`waBubbleText ${message.deletedForAll ? "deleted" : ""}`}>{message.displayText ?? message.text ?? ""}</div>;
+    return <div className={`waBubbleText ${message.deletedForAll ? "deleted" : ""}`}>{message.displayText ?? renderTextWithMentions(message.text) ?? ""}</div>;
   };
 
   return (
@@ -132,7 +138,6 @@ export default function MessageBubble({
 
       <div className="waBubbleContainer" ref={wrapRef} onClick={handleBubbleClick}>
         
-        {/* Swipe Reply Icon */}
         <div className="swipeReplyIcon" style={{ opacity: swipeX / 50, transform: `translateX(${swipeX - 40}px) scale(${Math.min(swipeX / 50, 1)})`}}>
           ↩
         </div>
@@ -149,7 +154,11 @@ export default function MessageBubble({
             <button type="button" className="waBubbleMenuBtn" aria-label="Message options" onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu); }}>▾</button>
           )}
 
-          <ReplySnippet replyTo={message.replyTo} onClick={(e) => { if(!selectionMode) onScrollToReply?.(message.replyTo.id); }} />
+          {!isMine && message.senderName && !message.deletedForAll && (
+             <div className="waSenderName">{message.senderName}</div>
+          )}
+
+          <ReplySnippet replyTo={message.replyTo} onClick={() => { if(!selectionMode) onScrollToReply?.(message.replyTo.id); }} />
           {displayContent()}
 
           <div className="waBubbleFooter">
@@ -159,7 +168,6 @@ export default function MessageBubble({
             {isMine && !message.deletedForAll && <span className={`waStatus ${message.status || "sent"}`}>{message.status === 'sent' ? '✓' : '✓✓'}</span>}
           </div>
 
-          {/* Render Reactions */}
           {message.reactions && message.reactions.length > 0 && (
             <div className="waReactionsDisplay">
               {message.reactions.map((emoji, i) => <span key={i} className="waReactionBadge">{emoji}</span>)}

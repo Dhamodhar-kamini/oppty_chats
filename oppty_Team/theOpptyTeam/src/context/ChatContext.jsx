@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useReducer } from "react";
 import { getAuthUser } from "../utils/auth.js";
 
-const STORAGE_KEY = "opty_chat_v2";
+const STORAGE_KEY = "opty_chat_v4";
 
 function uid() {
   return crypto?.randomUUID?.() ?? `${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -43,17 +43,20 @@ const seed = [
     about: "Hey there! I am using Oppty Chats.",
     contact: "elena@oppty.com",
     blocked: false,
+    hasLeft: false,
     messages: [
       {
         id: uid(),
         chatId: "1",
         sender: "them",
+        senderName: "Elena",
         type: "text",
         text: "Here are all the files. Let me know once you’ve had a look.",
         createdAt: now() - 1000 * 60 * 55,
         replyTo: null,
         deletedForAll: false,
         status: "read",
+        unread: false,
         reactions: [],
         isStarred: false,
         isPinned: false
@@ -62,14 +65,125 @@ const seed = [
         id: uid(),
         chatId: "1",
         sender: "me",
+        senderName: "You",
         type: "text",
         text: "Wow! Have great time. Enjoy.",
         createdAt: now() - 1000 * 60 * 52,
         replyTo: null,
         deletedForAll: false,
         status: "read",
+        unread: false,
         reactions: ["❤️"],
         isStarred: true,
+        isPinned: false
+      },
+    ],
+  },
+  {
+    id: "2",
+    kind: "dm",
+    name: "Dhamodhar@oppty",
+    avatarUrl: "https://i.pravatar.cc/100?img=12",
+    isOnline: false,
+    lastSeen: "last seen today at 10:21",
+    about: "Hey there! I am using Oppty Chats.",
+    contact: "Not available",
+    blocked: false,
+    hasLeft: false,
+    messages: [
+      {
+        id: uid(),
+        chatId: "2",
+        sender: "them",
+        senderName: "Dhamodhar",
+        type: "text",
+        text: "Video call later?",
+        createdAt: now() - 1000 * 60 * 180,
+        replyTo: null,
+        deletedForAll: false,
+        status: "delivered",
+        unread: true, 
+        reactions: [],
+        isStarred: false,
+        isPinned: false
+      },
+      {
+        id: uid(),
+        chatId: "2",
+        sender: "them",
+        senderName: "Dhamodhar",
+        type: "text",
+        text: "Let me know when you're free to catch up.",
+        createdAt: now() - 1000 * 60 * 175,
+        replyTo: null,
+        deletedForAll: false,
+        status: "delivered",
+        unread: true, 
+        reactions: [],
+        isStarred: false,
+        isPinned: false
+      },
+    ],
+  },
+  {
+    id: "g1",
+    kind: "group",
+    name: "Oppty Team",
+    avatarUrl: "https://i.pravatar.cc/100?img=20",
+    isOnline: false,
+    lastSeen: "",
+    about: "Official team discussion group.",
+    contact: "opptyteam@oppty.com",
+    isAdmin: true,
+    blocked: false,
+    hasLeft: false,
+    members: [
+      {
+        id: "emp-1",
+        name: "Employee One",
+        email: "employee@oppty.com",
+        avatarUrl: "https://i.pravatar.cc/100?img=11",
+        isAdmin: false
+      },
+      {
+        id: "emp-3",
+        name: "Maya",
+        email: "maya@oppty.com",
+        avatarUrl: "https://i.pravatar.cc/100?img=21",
+        isAdmin: true
+      },
+    ],
+    messages: [
+      {
+        id: uid(),
+        chatId: "g1",
+        sender: "system",
+        senderName: "System",
+        type: "system",
+        text: "You created this group",
+        createdAt: now() - 1000 * 60 * 305,
+        replyTo: null,
+        deletedForAll: false,
+        status: "read",
+        unread: false,
+        reactions: [],
+        isStarred: false,
+        isPinned: false
+      },
+      {
+        id: uid(),
+        chatId: "g1",
+        sender: "them",
+        senderName: "Maya",
+        type: "text",
+        text: "Welcome to Oppty Team group! @Employee One let's get started.",
+        createdAt: now() - 1000 * 60 * 300,
+        replyTo: null,
+        deletedForAll: false,
+        status: "read",
+        unread: false,
+        reactions: [],
+        isStarred: false,
         isPinned: false
       },
     ],
@@ -86,13 +200,15 @@ function normalizeAndMerge(persisted) {
     contact: c.contact ?? "Not available",
     isAdmin: c.isAdmin ?? false,
     blocked: c.blocked ?? false,
-    members: Array.isArray(c.members) ? c.members : [],
+    hasLeft: c.hasLeft ?? false,
+    members: Array.isArray(c.members) ? c.members.map(m => ({ ...m, isAdmin: m.isAdmin ?? false })) : [],
     messages: Array.isArray(c.messages)
       ? c.messages.map((m) => ({
           ...m,
           id: m.id ?? uid(),
           chatId: m.chatId ?? c.id,
           sender: m.sender ?? "them",
+          senderName: m.senderName ?? (m.sender === "me" ? "You" : "Them"),
           type: m.type ?? "text",
           text: m.text ?? "",
           fileUrl: m.fileUrl ?? "",
@@ -102,6 +218,7 @@ function normalizeAndMerge(persisted) {
           createdAt: safeTime(m.createdAt),
           isEdited: m.isEdited ?? false,
           status: m.status ?? "read",
+          unread: m.unread ?? false,
           reactions: Array.isArray(m.reactions) ? m.reactions : [],
           isStarred: m.isStarred ?? false,
           isPinned: m.isPinned ?? false
@@ -124,6 +241,25 @@ function isSystemAdmin() {
   return auth?.role === "admin";
 }
 
+function createSystemMessage(chatId, text) {
+  return {
+    id: uid(),
+    chatId,
+    sender: "system",
+    senderName: "System",
+    type: "system",
+    text,
+    createdAt: now(),
+    replyTo: null,
+    deletedForAll: false,
+    status: "read",
+    unread: false,
+    reactions: [],
+    isStarred: false,
+    isPinned: false
+  };
+}
+
 function reducer(state, action) {
   switch (action.type) {
     case "INIT": return { chats: action.chats };
@@ -135,12 +271,19 @@ function reducer(state, action) {
       const text = action.text.trim();
       if (!text) return state;
       const target = state.chats.find((c) => c.id === action.chatId);
-      if (!target || target.blocked) return state;
+      if (!target || target.blocked || target.hasLeft) return state;
 
       const msg = {
-        id: uid(), chatId: action.chatId, sender: "me", type: "text",
-        text, createdAt: now(), replyTo: action.replyTo || null,
-        deletedForAll: false, status: "read", reactions: [], isStarred: false, isPinned: false
+        id: uid(), chatId: action.chatId, sender: "me", senderName: "You", type: "text",
+        text, createdAt: now(), 
+        replyTo: action.replyTo ? {
+           id: action.replyTo.id,
+           text: action.replyTo.text,
+           type: action.replyTo.type,
+           fileName: action.replyTo.fileName,
+           senderName: action.replyTo.senderName || (action.replyTo.sender === 'me' ? 'You' : 'Them')
+        } : null,
+        deletedForAll: false, status: "read", unread: false, reactions: [], isStarred: false, isPinned: false
       };
       const chats = state.chats.map((c) => c.id === action.chatId ? { ...c, messages: [...c.messages, msg] } : c);
       saveChats(chats);
@@ -149,13 +292,20 @@ function reducer(state, action) {
 
     case "SEND_ATTACHMENT": {
       const target = state.chats.find((c) => c.id === action.chatId);
-      if (!target || target.blocked) return state;
+      if (!target || target.blocked || target.hasLeft) return state;
 
       const msg = {
-        id: uid(), chatId: action.chatId, sender: "me", type: action.attachmentType,
+        id: uid(), chatId: action.chatId, sender: "me", senderName: "You", type: action.attachmentType,
         text: action.fileName || "", fileUrl: action.fileUrl || "", fileName: action.fileName || "",
-        createdAt: now(), replyTo: action.replyTo || null,
-        deletedForAll: false, status: "read", reactions: [], isStarred: false, isPinned: false
+        createdAt: now(), 
+        replyTo: action.replyTo ? {
+           id: action.replyTo.id,
+           text: action.replyTo.text,
+           type: action.replyTo.type,
+           fileName: action.replyTo.fileName,
+           senderName: action.replyTo.senderName || (action.replyTo.sender === 'me' ? 'You' : 'Them')
+        } : null,
+        deletedForAll: false, status: "read", unread: false, reactions: [], isStarred: false, isPinned: false
       };
       const chats = state.chats.map((c) => c.id === action.chatId ? { ...c, messages: [...c.messages, msg] } : c);
       saveChats(chats);
@@ -243,6 +393,7 @@ function reducer(state, action) {
         about: "Hey there! I am using Oppty Chats.",
         contact: action.payload.contact?.trim() || "Not available",
         blocked: false,
+        hasLeft: false,
         messages: [],
       };
 
@@ -255,8 +406,10 @@ function reducer(state, action) {
       const name = action.payload.name.trim();
       if (!name) return state;
 
+      const sysMsg = createSystemMessage(uid(), "You created this group");
+
       const newGroup = {
-        id: uid(),
+        id: sysMsg.chatId,
         kind: "group",
         name,
         avatarUrl: action.payload.avatarUrl || `https://i.pravatar.cc/100?u=${encodeURIComponent("group_" + name + Date.now())}`,
@@ -266,8 +419,9 @@ function reducer(state, action) {
         contact: action.payload.contact?.trim() || "Not available",
         isAdmin: true,
         blocked: false,
+        hasLeft: false,
         members: [],
-        messages: [],
+        messages: [sysMsg],
       };
 
       const chats = [newGroup, ...state.chats];
@@ -281,11 +435,28 @@ function reducer(state, action) {
 
       const chats = state.chats.map((chat) => {
         if (String(chat.id) !== String(action.chatId)) return chat;
-        if (isSystemAdmin()) return { ...chat, name };
-        if (chat.kind === "group" && !chat.isAdmin) return chat;
-        return { ...chat, name };
+        
+        let updatedChat = { ...chat, name };
+        if (chat.kind === "group" && !chat.hasLeft) {
+           updatedChat.messages = [...chat.messages, createSystemMessage(chat.id, `You changed the subject to "${name}"`)];
+        }
+        return updatedChat;
       });
 
+      saveChats(chats);
+      return { chats };
+    }
+
+    case "UPDATE_GROUP_ABOUT": {
+      const about = action.about.trim();
+      const chats = state.chats.map((chat) => {
+        if (String(chat.id) !== String(action.chatId)) return chat;
+        return {
+          ...chat,
+          about,
+          messages: [...chat.messages, createSystemMessage(chat.id, "You changed the group description")]
+        };
+      });
       saveChats(chats);
       return { chats };
     }
@@ -309,22 +480,80 @@ function reducer(state, action) {
     }
 
     case "ADD_GROUP_MEMBER": {
-      if (!isSystemAdmin()) return state;
       const chats = state.chats.map((chat) => {
         if (String(chat.id) !== String(action.chatId) || chat.kind !== "group") return chat;
         const exists = (chat.members || []).some((member) => String(member.id) === String(action.member.id));
         if (exists) return chat;
-        return { ...chat, members: [...(chat.members || []), action.member] };
+        
+        return { 
+          ...chat, 
+          members: [...(chat.members || []), { ...action.member, isAdmin: false }],
+          messages: [...chat.messages, createSystemMessage(chat.id, `You added ${action.member.name}`)]
+        };
       });
       saveChats(chats);
       return { chats };
     }
 
     case "REMOVE_GROUP_MEMBER": {
-      if (!isSystemAdmin()) return state;
       const chats = state.chats.map((chat) => {
         if (String(chat.id) !== String(action.chatId) || chat.kind !== "group") return chat;
-        return { ...chat, members: (chat.members || []).filter((member) => String(member.id) !== String(action.memberId)) };
+        
+        const memberToRemove = chat.members.find(m => String(m.id) === String(action.memberId));
+        if (!memberToRemove) return chat;
+
+        return { 
+          ...chat, 
+          members: chat.members.filter((m) => String(m.id) !== String(action.memberId)),
+          messages: [...chat.messages, createSystemMessage(chat.id, `You removed ${memberToRemove.name}`)]
+        };
+      });
+      saveChats(chats);
+      return { chats };
+    }
+
+    case "PROMOTE_ADMIN": {
+      const chats = state.chats.map((chat) => {
+        if (String(chat.id) !== String(action.chatId) || chat.kind !== "group") return chat;
+        
+        const member = chat.members.find(m => String(m.id) === String(action.memberId));
+        if (!member) return chat;
+
+        return {
+          ...chat,
+          members: chat.members.map(m => String(m.id) === String(action.memberId) ? { ...m, isAdmin: true } : m),
+          messages: [...chat.messages, createSystemMessage(chat.id, `You made ${member.name} a group admin`)]
+        }
+      });
+      saveChats(chats);
+      return { chats };
+    }
+
+    case "DEMOTE_ADMIN": {
+      const chats = state.chats.map((chat) => {
+        if (String(chat.id) !== String(action.chatId) || chat.kind !== "group") return chat;
+        
+        const member = chat.members.find(m => String(m.id) === String(action.memberId));
+        if (!member) return chat;
+
+        return {
+          ...chat,
+          members: chat.members.map(m => String(m.id) === String(action.memberId) ? { ...m, isAdmin: false } : m),
+          messages: [...chat.messages, createSystemMessage(chat.id, `You dismissed ${member.name} as admin`)]
+        }
+      });
+      saveChats(chats);
+      return { chats };
+    }
+
+    case "LEAVE_GROUP": {
+      const chats = state.chats.map((chat) => {
+        if (String(chat.id) !== String(action.chatId) || chat.kind !== "group") return chat;
+        return {
+          ...chat,
+          hasLeft: true,
+          messages: [...chat.messages, createSystemMessage(chat.id, "You left")]
+        }
       });
       saveChats(chats);
       return { chats };
@@ -357,15 +586,20 @@ export function ChatProvider({ children }) {
       deleteMessageForMe: (chatId, messageId) => dispatch({ type: "DELETE_MESSAGE_FOR_ME", chatId, messageId }),
       deleteMessageForAll: (chatId, messageId) => dispatch({ type: "DELETE_MESSAGE_FOR_ALL", chatId, messageId }),
       
-      // CRITICAL FIX: Ensure addContact and addGroup are included here
       addContact: (payload) => dispatch({ type: "ADD_CONTACT", payload }),
       addGroup: (payload) => dispatch({ type: "ADD_GROUP", payload }),
       
       updateChatName: (chatId, name) => dispatch({ type: "UPDATE_CHAT_NAME", chatId, name }),
+      updateGroupAbout: (chatId, about) => dispatch({ type: "UPDATE_GROUP_ABOUT", chatId, about }),
       deleteChat: (chatId) => dispatch({ type: "DELETE_CHAT", chatId }),
       toggleBlockChat: (chatId) => dispatch({ type: "TOGGLE_BLOCK_CHAT", chatId }),
+      
       addGroupMember: (chatId, member) => dispatch({ type: "ADD_GROUP_MEMBER", chatId, member }),
       removeGroupMember: (chatId, memberId) => dispatch({ type: "REMOVE_GROUP_MEMBER", chatId, memberId }),
+      promoteAdmin: (chatId, memberId) => dispatch({ type: "PROMOTE_ADMIN", chatId, memberId }),
+      demoteAdmin: (chatId, memberId) => dispatch({ type: "DEMOTE_ADMIN", chatId, memberId }),
+      leaveGroup: (chatId) => dispatch({ type: "LEAVE_GROUP", chatId }),
+      
       resetChats: () => dispatch({ type: "RESET" }),
       isAdmin: isSystemAdmin(),
     }),

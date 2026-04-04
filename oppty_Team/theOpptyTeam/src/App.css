@@ -2517,3 +2517,163 @@
   text-overflow: ellipsis;
   max-width: 300px;
 }
+
+
+/* ---- UNREAD DIVIDER ---- */
+.unreadDivider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 16px 0 10px;
+  position: relative;
+}
+
+.unreadDivider::before,
+.unreadDivider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(0, 168, 132, 0.3);
+  margin: 0 12px;
+}
+
+.unreadDivider span {
+  color: #00a884;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: #ffffff;
+  padding: 6px 14px;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(11, 20, 26, 0.08);
+}
+
+/* ---- TYPING INDICATOR ---- */
+.typingIndicator {
+  color: #00a884;
+  font-style: italic;
+  font-weight: 500;
+}
+
+/* ---- MENTIONS FORMATTING ---- */
+.waMention {
+  color: #00a884;
+  font-weight: 600;
+  cursor: pointer;
+}
+.waMention:hover {
+  text-decoration: underline;
+}
+
+/* ---- GROUP SENDER NAME ---- */
+.waSenderName {
+  font-size: 13px;
+  font-weight: 700;
+  color: #00a884;
+  margin-bottom: 2px;
+}
+
+
+/* ---- MENTION POPUP STYLES ---- */
+.mentionPopup {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(17, 27, 33, 0.15);
+  max-height: 200px;
+  overflow-y: auto;
+  min-width: 220px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 0;
+}
+
+.mentionItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.mentionItem:hover, 
+.mentionItem.selected {
+  background: rgba(0, 168, 132, 0.08);
+}
+
+.mentionAvatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.mentionName {
+  font-size: 14px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+
+/* ---- SYSTEM MESSAGES ---- */
+.waSystemMessageWrap {
+  display: flex;
+  justify-content: center;
+  margin: 12px 0;
+  width: 100%;
+}
+
+.waSystemMessage {
+  background: #f0f2f5;
+  color: #54656f;
+  font-size: 12.5px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  text-align: center;
+  max-width: 85%;
+  line-height: 1.4;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+}
+
+/* ---- GROUP ADMIN LIST BADGES ---- */
+.groupAdminBadge {
+  background: #e7fce3;
+  color: #00a884;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  margin-left: 8px;
+  border: 1px solid rgba(0, 168, 132, 0.3);
+}
+
+.groupMemberActionBtn {
+  border: none;
+  background: transparent;
+  color: #00a884;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 8px 12px;
+}
+
+.groupMemberActionBtn:hover {
+  background: #f0f2f5;
+  border-radius: 8px;
+}
+
+/* ---- DISABLED COMPOSER STATE ---- */
+.composerDisabled {
+  justify-content: center;
+  color: #667781;
+  padding: 20px;
+  font-size: 14px;
+  background: #f0f2f5;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
