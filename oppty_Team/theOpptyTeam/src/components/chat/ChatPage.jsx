@@ -34,9 +34,9 @@ export default function ChatPage() {
   const isDesktop = useMediaQuery("(min-width: 900px)");
 
   const {
-    chats, getChatById, sendMessage, sendAttachment, editMessage, toggleReaction, toggleStar, togglePin,
+    chats, getChatById, sendMessage, sendAttachment, sendPoll, votePoll, editMessage, toggleReaction, toggleStar, togglePin,
     updateChatName, updateGroupAbout, deleteChat, toggleBlockChat, addGroupMember, removeGroupMember,
-    promoteAdmin, demoteAdmin, leaveGroup, deleteMessageForMe, deleteMessageForAll, isAdmin, isLoading, showToast
+    promoteAdmin, demoteAdmin, leaveGroup, deleteMessageForMe, deleteMessageForAll, setDisappearingMode, isAdmin, isLoading, showToast
   } = useChats();
 
   const chat = chatId ? getChatById(chatId) : null;
@@ -44,6 +44,11 @@ export default function ChatPage() {
   const [drafts, setDrafts] = useState({});
   const text = drafts[chatId] || "";
   const setText = (val) => setDrafts((prev) => ({ ...prev, [chatId]: val }));
+
+  const [showPollModal, setShowPollModal] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState("");
+  const [pollOptions, setPollOptions] = useState(["", ""]);
+  const [pollAllowMultiple, setPollAllowMultiple] = useState(false);
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -56,7 +61,6 @@ export default function ChatPage() {
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState("");
-
   const [isEditingAbout, setIsEditingAbout] = useState(false);
   const [draftAbout, setDraftAbout] = useState("");
 
@@ -67,23 +71,18 @@ export default function ChatPage() {
 
   const [showMediaPanel, setShowMediaPanel] = useState(false);
   const [activeMediaTab, setActiveMediaTab] = useState("media");
-
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [showStickerMenu, setShowStickerMenu] = useState(false);
 
   const [replyingTo, setReplyingTo] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
-  
   const [forwardingMessage, setForwardingMessage] = useState(null);
   const [deletePrompt, setDeletePrompt] = useState(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedMessages, setSelectedMessages] = useState([]);
   
   const [isTyping, setIsTyping] = useState(false);
-
-  const [mentionState, setMentionState] = useState({
-    active: false, query: "", startIndex: -1, selectedIndex: 0,
-  });
+  const [mentionState, setMentionState] = useState({ active: false, query: "", startIndex: -1, selectedIndex: 0 });
 
   const endRef = useRef(null);
   const optionsRef = useRef(null);
@@ -112,27 +111,17 @@ export default function ChatPage() {
   const canEditGroupInfo = isAdmin || chat?.isAdmin === true;
   const memberCount = chat?.kind === "group" ? chat.members?.length || 0 : 0;
 
-  const toggleSelection = (msgId) => {
-    setSelectedMessages(prev => prev.includes(msgId) ? prev.filter(id => id !== msgId) : [...prev, msgId]);
-  };
+  const toggleSelection = (msgId) => { setSelectedMessages(prev => prev.includes(msgId) ? prev.filter(id => id !== msgId) : [...prev, msgId]); };
 
-  useEffect(() => {
-    if (selectedMessages.length === 0 && selectionMode) setSelectionMode(false);
-  }, [selectedMessages, selectionMode]);
+  useEffect(() => { if (selectedMessages.length === 0 && selectionMode) setSelectionMode(false); }, [selectedMessages, selectionMode]);
 
   const pinnedMessages = chat?.messages?.filter(m => m.isPinned && !m.deletedForAll) || [];
-  const firstUnreadId = useMemo(() => {
-    if (!chat) return null;
-    const unreadMsg = chat.messages.find((m) => m.unread && m.sender !== "me");
-    return unreadMsg ? unreadMsg.id : null;
-  }, [chat]);
+  const firstUnreadId = useMemo(() => { if (!chat) return null; const unreadMsg = chat.messages.find((m) => m.unread && m.sender !== "me"); return unreadMsg ? unreadMsg.id : null; }, [chat]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const targetMsgId = params.get("msg");
-    if (targetMsgId && chat) {
-      setTimeout(() => { handleScrollToMessage(targetMsgId); }, 400); 
-    }
+    if (targetMsgId && chat) { setTimeout(() => { handleScrollToMessage(targetMsgId); }, 400); }
   }, [location.search, chat]);
 
   const availableEmployees = useMemo(() => {
@@ -178,6 +167,17 @@ export default function ChatPage() {
     });
   }, [chat, searchTerm, filterSender, filterDate]);
 
+  const groups = useMemo(() => {
+    if (!chat?.messages?.length) return [];
+    const map = new Map();
+    for (const m of chat.messages) {
+      const day = formatDay(m.createdAt);
+      if (!map.has(day)) map.set(day, []);
+      map.get(day).push(m);
+    }
+    return Array.from(map.entries()).map(([day, messages]) => ({ day, messages }));
+  }, [chat]);
+
   const uploadedMediaItems = useMemo(() => { return (chat?.messages || []).filter((m) => m.type === "image"); }, [chat]);
   const uploadedDocItems = useMemo(() => { return (chat?.messages || []).filter((m) => m.type === "document"); }, [chat]);
   const linkItems = useMemo(() => { return (chat?.messages || []).filter((m) => isLink(m.text)); }, [chat]);
@@ -208,7 +208,7 @@ export default function ChatPage() {
     };
     const handleEscape = (event) => {
       if (event.key === "Escape") {
-        setShowOptionsMenu(false); setShowChatInfo(false); setIsEditingName(false); setIsEditingAbout(false); setPreviewMedia(""); setShowMediaPanel(false); setShowAttachMenu(false); setShowStickerMenu(false); setForwardingMessage(null); setDeletePrompt(null);
+        setShowOptionsMenu(false); setShowChatInfo(false); setIsEditingName(false); setIsEditingAbout(false); setPreviewMedia(""); setShowMediaPanel(false); setShowAttachMenu(false); setShowStickerMenu(false); setForwardingMessage(null); setDeletePrompt(null); setShowPollModal(false);
         if (mentionState.active) setMentionState(p => ({ ...p, active: false }));
         if (selectionMode) { setSelectionMode(false); setSelectedMessages([]); }
         if (searchOpen) { setSearchOpen(false); setSearchTerm(""); setFilterSender(""); setFilterDate(""); setActiveSearchIndex(0); }
@@ -230,18 +230,6 @@ export default function ChatPage() {
     if (node) node.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [activeSearchIndex, matchedMessages]);
 
-  const groups = useMemo(() => {
-    if (!chat?.messages?.length) return [];
-    const map = new Map();
-    for (const m of chat.messages) {
-      const day = formatDay(m.createdAt);
-      if (!map.has(day)) map.set(day, []);
-      map.get(day).push(m);
-    }
-    return Array.from(map.entries()).map(([day, messages]) => ({ day, messages }));
-  }, [chat]);
-
-  // UX Polish: Render Empty State
   if (!chat) {
     return (
       <div className="chatEmpty animatedFadeIn">
@@ -322,6 +310,17 @@ export default function ChatPage() {
     setText((prev) => `${prev}${prev ? " " : ""}${sticker}`); setShowStickerMenu(false);
   };
 
+  const handleAddPollOption = () => { setPollOptions(prev => [...prev, ""]); };
+  const handlePollOptionChange = (index, val) => { const newOptions = [...pollOptions]; newOptions[index] = val; setPollOptions(newOptions); };
+  const handleRemovePollOption = (index) => { if (pollOptions.length <= 2) return; setPollOptions(prev => prev.filter((_, i) => i !== index)); };
+  const handleSendPoll = () => {
+    if (!pollQuestion.trim()) return;
+    const validOptions = pollOptions.filter(opt => opt.trim());
+    if (validOptions.length < 2) return;
+    sendPoll(chat.id, pollQuestion, validOptions, pollAllowMultiple);
+    setShowPollModal(false); setPollQuestion(""); setPollOptions(["", ""]); setPollAllowMultiple(false); setShowAttachMenu(false);
+  };
+
   const handleOpenSearch = () => { setSearchOpen(true); setShowOptionsMenu(false); };
   const handleCloseSearch = () => { setSearchOpen(false); setSearchTerm(""); setFilterSender(""); setFilterDate(""); setActiveSearchIndex(0); };
   const handleNextMatch = () => { if (matchedMessages.length) setActiveSearchIndex((prev) => (prev + 1) % matchedMessages.length); };
@@ -342,7 +341,6 @@ export default function ChatPage() {
 
   const handleDeleteChat = () => { if (isAdmin) { deleteChat(chat.id); setShowOptionsMenu(false); setShowChatInfo(false); navigate(chat.kind === "group" ? "/groups" : "/chats"); showToast("Chat deleted", "error"); }};
   const handleToggleBlock = () => { if (isAdmin) { toggleBlockChat(chat.id); setShowOptionsMenu(false); showToast(chat.blocked ? "Chat unblocked" : "Chat blocked"); }};
-  
   const handleLeaveGroup = () => { leaveGroup(chat.id); setShowOptionsMenu(false); setShowChatInfo(false); showToast("You left the group"); };
 
   const handleAddMember = () => {
@@ -497,6 +495,18 @@ export default function ChatPage() {
                   <div className="chatInfoCardRow"><span className="chatInfoLabel">About</span><strong className="chatInfoValue">{chat.about || "Hey there! I am using Oppty Chats."}</strong></div>
                   <div className="chatInfoCardRow"><span className="chatInfoLabel">Phone / Email</span><strong className="chatInfoValue">{chat.contact || chat.email || "Not available"}</strong></div>
                   <div className="groupInfoSectionCard mediaLinksDocsCard" onClick={() => setShowMediaPanel(true)} role="button" tabIndex={0}><div className="groupInfoSectionTop"><div className="groupInfoSectionTitle">Media, links and docs</div><div className="groupInfoSectionCount">{totalSharedCount}</div></div><div className="groupMediaPreviewRow">{mediaItems.slice(0, 2).map((item) => (<button key={item.id} type="button" className="groupMediaPreviewItem" onClick={(e) => { e.stopPropagation(); if (item.fileUrl && item.fileUrl !== "#") setPreviewMedia(item.fileUrl); }}><img src={item.fileUrl} alt={item.fileName} /></button>))}</div></div>
+                  
+                  {/* DISAPPEARING MESSAGES CARD */}
+                  <div className="groupInfoSectionCard">
+                    <div className="groupInfoSectionTop" style={{marginBottom: 8}}><div className="groupInfoSectionTitle">Disappearing messages</div></div>
+                    <div className="disappearingSettings">
+                      <select className="chatSearchFilterSelect" style={{ width: '100%', marginBottom: 6 }} value={chat.disappearingMode || "off"} onChange={(e) => { setDisappearingMode(chat.id, e.target.value); showToast("Disappearing messages updated"); }}>
+                        <option value="off">Off</option><option value="24h">24 hours</option><option value="7d">7 days</option><option value="90d">90 days</option>
+                      </select>
+                      <div className="muted" style={{ fontSize: 13, lineHeight: 1.4 }}>Make messages in this chat disappear after the selected time. Pinned messages will be kept.</div>
+                    </div>
+                  </div>
+
                   {isAdmin && (<div className="chatInfoAdminActions"><button type="button" className="popup-btn popup-btn-secondary" onClick={handleToggleBlock}>{chat.blocked ? "Unblock" : "Block"} Contact</button><button type="button" className="popup-btn popup-btn-danger" onClick={handleDeleteChat}>Delete Chat</button></div>)}
                 </div>
               )}
@@ -505,6 +515,18 @@ export default function ChatPage() {
             {chat.kind === "group" && (
               <>
                 <div className="groupInfoSectionCard mediaLinksDocsCard" onClick={() => setShowMediaPanel(true)} role="button" tabIndex={0}><div className="groupInfoSectionTop"><div className="groupInfoSectionTitle">Media, links and docs</div><div className="groupInfoSectionCount">{totalSharedCount}</div></div><div className="groupMediaPreviewRow">{mediaItems.slice(0, 2).length ? (mediaItems.slice(0, 2).map((item) => (<button key={item.id} type="button" className="groupMediaPreviewItem" onClick={(e) => { e.stopPropagation(); if (item.fileUrl && item.fileUrl !== "#") setPreviewMedia(item.fileUrl); }}><img src={item.fileUrl} alt={item.fileName} /></button>))) : ( <div className="muted">No media, docs or links shared yet.</div> )}</div></div>
+                
+                {/* DISAPPEARING MESSAGES CARD (GROUPS) */}
+                <div className="groupInfoSectionCard">
+                  <div className="groupInfoSectionTop" style={{marginBottom: 8}}><div className="groupInfoSectionTitle">Disappearing messages</div></div>
+                  <div className="disappearingSettings">
+                    <select className="chatSearchFilterSelect" style={{ width: '100%', marginBottom: 6 }} value={chat.disappearingMode || "off"} onChange={(e) => { setDisappearingMode(chat.id, e.target.value); showToast("Disappearing messages updated"); }}>
+                      <option value="off">Off</option><option value="24h">24 hours</option><option value="7d">7 days</option><option value="90d">90 days</option>
+                    </select>
+                    <div className="muted" style={{ fontSize: 13, lineHeight: 1.4 }}>Make messages in this chat disappear after the selected time. Pinned messages will be kept.</div>
+                  </div>
+                </div>
+
                 <div className="groupMembersSection" ref={membersListSectionRef}>
                   <div className="groupMembersHeaderRow"><div className="groupMembersHeaderTitle">{memberCount} member{memberCount !== 1 ? "s" : ""}</div></div>
                   <div className="groupAddMemberSearchBox groupMembersFilterBox"><input ref={membersFilterRef} type="text" className="groupMemberSearchInput" value={groupMemberFilter} onChange={(e) => setGroupMemberFilter(e.target.value)} placeholder="Search members by name or email" /></div>
@@ -548,7 +570,6 @@ export default function ChatPage() {
       )}
 
       <section className="messages" aria-label="Messages">
-        {/* UX Polish: Skeleton Loaders */}
         {isLoading ? (
           <>
              <div className="skeleton skeletonBubble skeletonMine" />
@@ -578,6 +599,7 @@ export default function ChatPage() {
                         onReaction={(emoji) => toggleReaction(chat.id, m.id, emoji)}
                         onStar={() => toggleStar(chat.id, m.id)}
                         onPin={() => togglePin(chat.id, m.id)}
+                        onVote={(optId) => votePoll(chat.id, m.id, optId)}
                         onReply={() => handleReplyMessage(m)}
                         onEdit={() => handleEditMessage(m)}
                         onForward={() => setForwardingMessage(m)}
@@ -597,10 +619,43 @@ export default function ChatPage() {
         <div ref={endRef} />
       </section>
 
+      {/* POLL MODAL OVERLAY */}
+      {showPollModal && (
+        <div className="mediaPreviewOverlay animatedFadeIn" onClick={() => setShowPollModal(false)}>
+          <div className="customModal pollModal" onClick={(e) => e.stopPropagation()}>
+            <div className="forwardModalHeader">
+              <h3 className="customModalTitle">Create Poll</h3>
+              <button className="iconBtn" onClick={() => setShowPollModal(false)}>✕</button>
+            </div>
+            <div className="pollModalBody">
+              <label className="profile-input-group">
+                <span className="profile-input-label">Question</span>
+                <input type="text" className="profile-input" value={pollQuestion} onChange={e => setPollQuestion(e.target.value)} placeholder="Ask a question" autoFocus />
+              </label>
+              <div className="profile-input-label" style={{marginTop: 16}}>Options</div>
+              <div className="pollOptionsEditor">
+                {pollOptions.map((opt, i) => (
+                  <div key={i} className="pollOptionRow">
+                    <input type="text" className="profile-input" value={opt} onChange={e => handlePollOptionChange(i, e.target.value)} placeholder={`Option ${i + 1}`} />
+                    {pollOptions.length > 2 && (<button className="iconBtn deleteOptBtn" onClick={() => handleRemovePollOption(i)}>✕</button>)}
+                  </div>
+                ))}
+                {pollOptions.length < 12 && (<button className="addOptBtn" onClick={handleAddPollOption}>+ Add Option</button>)}
+              </div>
+              <label className="pollToggleRow">
+                <input type="checkbox" checked={pollAllowMultiple} onChange={e => setPollAllowMultiple(e.target.checked)} /><span>Allow multiple answers</span>
+              </label>
+            </div>
+            <div className="customModalActions" style={{padding: "16px 20px", borderTop: "1px solid var(--border)"}}>
+              <button className="popup-btn popup-btn-secondary" onClick={() => setShowPollModal(false)}>Cancel</button>
+              <button className="popup-btn popup-btn-danger" onClick={handleSendPoll} disabled={!pollQuestion.trim() || pollOptions.filter(o => o.trim()).length < 2}>Send Poll</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {chat.hasLeft ? (
-        <footer className="composer composerDisabled animatedFadeIn">
-          You can't send messages to this group because you're no longer a participant.
-        </footer>
+        <footer className="composer composerDisabled animatedFadeIn">You can't send messages to this group because you're no longer a participant.</footer>
       ) : (
         <footer className="composer">
           {replyingTo && (
@@ -610,7 +665,6 @@ export default function ChatPage() {
               <button type="button" className="waComposerReplyClose" onClick={() => setReplyingTo(null)}>✕</button>
             </div>
           )}
-
           {editingMessage && (
             <div className="waComposerReplyBar animatedFadeIn">
               <div className="waComposerReplyAccent" />
@@ -630,10 +684,26 @@ export default function ChatPage() {
                 ))}
               </div>
             )}
+            
             <div className="composer-action-wrapper">
               <button ref={attachBtnRef} type="button" className="composerActionBtn" onClick={() => { setShowAttachMenu((prev) => !prev); setShowStickerMenu(false); }} title="Attach" disabled={chat.blocked}>+</button>
               {showAttachMenu && (
-                <div ref={attachMenuRef} className="composerPopupMenu attachMenu"><button type="button" className="composerPopupItem" onClick={() => handleAttachmentAction("image")}>🖼 Image</button><button type="button" className="composerPopupItem" onClick={() => handleAttachmentAction("document")}>📄 Document</button><button type="button" className="composerPopupItem" onClick={() => handleAttachmentAction("contact")}>👤 Contact</button></div>
+                <div ref={attachMenuRef} className="waAttachMenu">
+                  <button type="button" className="waAttachMenuItem" onClick={() => handleAttachmentAction("document")}>
+                    <div className="waAttachIcon waAttachIcon-doc"><svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg></div><span>Document</span>
+                  </button>
+                  <button type="button" className="waAttachMenuItem" onClick={() => handleAttachmentAction("image")}>
+                    <div className="waAttachIcon waAttachIcon-image"><svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></div><span>Photos & Videos</span>
+                  </button>
+                  {chat.kind === "group" && (
+                    <button type="button" className="waAttachMenuItem" onClick={() => { setShowPollModal(true); setShowAttachMenu(false); }}>
+                      <div className="waAttachIcon waAttachIcon-poll"><svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg></div><span>Poll</span>
+                    </button>
+                  )}
+                  <button type="button" className="waAttachMenuItem" onClick={() => handleAttachmentAction("contact")}>
+                    <div className="waAttachIcon waAttachIcon-contact"><svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg></div><span>Contact</span>
+                  </button>
+                </div>
               )}
             </div>
 
@@ -656,6 +726,7 @@ export default function ChatPage() {
         </footer>
       )}
 
+      {/* Shared Media/Links/Docs Overlays... */}
       {showMediaPanel && (
         <div className="mediaSharedOverlay animatedFadeIn">
           <div className="mediaSharedPanel">

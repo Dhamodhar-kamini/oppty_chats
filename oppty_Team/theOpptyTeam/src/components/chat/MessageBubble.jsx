@@ -7,8 +7,6 @@ function formatTime(ts) {
   return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function isPlainLink(text) { return typeof text === "string" && /^https?:\/\//i.test(text); }
-
 const QUICK_REACTIONS = ["❤️", "👍", "😂", "😮", "😢", "🙏"];
 
 function ReplySnippet({ replyTo, onClick }) {
@@ -36,21 +34,21 @@ function renderTextWithMentions(text) {
 
 export default function MessageBubble({
   message, onReply, onEdit, onForward, onDeleteForMe, onDeleteForAll, canDeleteForAll,
-  onScrollToReply, onPreviewImage, onReaction, onStar, onPin,
+  onScrollToReply, onPreviewImage, onReaction, onStar, onPin, onVote,
   selectionMode, isSelected, onToggleSelect
 }) {
   const { showToast } = useChats();
   const isMine = message.sender === "me";
   const wrapRef = useRef(null);
   
-  // UX Polish: Desktop Context Menu
+  // Menu Positioning State
   const [menuPos, setMenuPos] = useState({ visible: false, x: 0, y: 0 });
   const [showHoverReactions, setShowHoverReactions] = useState(false);
-  
   const [swipeX, setSwipeX] = useState(0);
   const touchStartX = useRef(null);
   const longPressTimer = useRef(null);
 
+  // Close menus when clicking outside
   useEffect(() => {
     const handleOutside = (event) => {
       if (wrapRef.current && !wrapRef.current.contains(event.target)) {
@@ -62,6 +60,19 @@ export default function MessageBubble({
     return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
+  // Close fixed menus on scroll to prevent floating
+  useEffect(() => {
+    const handleScroll = () => {
+      if (menuPos.visible || showHoverReactions) {
+        setMenuPos({ visible: false, x: 0, y: 0 });
+        setShowHoverReactions(false);
+      }
+    };
+    window.addEventListener('scroll', handleScroll, true); // true catches all scrolling containers
+    return () => window.removeEventListener('scroll', handleScroll, true);
+  }, [menuPos.visible, showHoverReactions]);
+
+  // Handle System Messages gracefully
   if (message.type === "system") {
     return (
       <div className="waSystemMessageWrap animatedFadeIn">
@@ -70,20 +81,45 @@ export default function MessageBubble({
     );
   }
 
+  // --- DYNAMIC POSITIONING LOGIC ---
+  const openMenuAt = (clientX, clientY) => {
+    let x = clientX;
+    let y = clientY;
+    
+    // Approximate dimensions of the context menu
+    const menuWidth = 220; 
+    const menuHeight = 360; 
+
+    // Prevent clipping on the right edge
+    if (x + menuWidth > window.innerWidth) {
+      x = window.innerWidth - menuWidth - 16;
+    }
+    // Prevent clipping on the bottom edge
+    if (y + menuHeight > window.innerHeight) {
+      y = window.innerHeight - menuHeight - 16;
+    }
+
+    setMenuPos({ visible: true, x, y });
+  };
+
+  // Interaction Handlers
   const handleTouchStart = (e) => {
     if (selectionMode) return;
-    touchStartX.current = e.touches[0].clientX;
+    const touchX = e.touches[0].clientX;
+    const touchY = e.touches[0].clientY;
+    touchStartX.current = touchX;
+
     longPressTimer.current = setTimeout(() => {
-      setMenuPos({ visible: true, x: e.touches[0].clientX, y: e.touches[0].clientY });
+      openMenuAt(touchX, touchY);
       if (window.navigator && window.navigator.vibrate) navigator.vibrate(50);
     }, 500);
   };
 
   const handleTouchMove = (e) => {
     if (selectionMode || touchStartX.current === null) return;
-    clearTimeout(longPressTimer.current);
+    clearTimeout(longPressTimer.current); // Cancel long press if swiping
     const deltaX = e.touches[0].clientX - touchStartX.current;
-    if (deltaX > 0 && deltaX < 80) setSwipeX(deltaX);
+    if (deltaX > 0 && deltaX < 80) setSwipeX(deltaX); // Swipe right to reply
   };
 
   const handleTouchEnd = () => {
@@ -96,16 +132,17 @@ export default function MessageBubble({
     setSwipeX(0);
   };
 
-  // UX Polish: Accurate Desktop Right-Click
   const handleContextMenu = (e) => {
     e.preventDefault();
     if (!selectionMode && !message.deletedForAll) {
-      let x = e.clientX;
-      let y = e.clientY;
-      if (window.innerWidth - x < 200) x = window.innerWidth - 200;
-      if (window.innerHeight - y < 350) y = window.innerHeight - 350;
-      setMenuPos({ visible: true, x, y });
+      openMenuAt(e.clientX, e.clientY);
     }
+  };
+
+  const handleChevronClick = (e) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    openMenuAt(rect.left, rect.bottom + 4);
   };
 
   const handleBubbleClick = () => {
@@ -127,6 +164,7 @@ export default function MessageBubble({
         </div>
       );
     }
+
     if (message.type === "document") {
       return (
         <a href={message.fileUrl || "#"} target="_blank" rel="noreferrer" className="chatDocumentCard" onClick={(e) => selectionMode && e.preventDefault()}>
@@ -138,18 +176,82 @@ export default function MessageBubble({
         </a>
       );
     }
-    if (!message.deletedForAll && isPlainLink(message.text)) {
-      return <a href={message.text} target="_blank" rel="noreferrer" className="chatLinkPreview" onClick={(e) => selectionMode && e.preventDefault()}>{message.displayText ?? message.text}</a>;
+
+    if (message.type === "poll") {
+      const uniqueVoters = new Set();
+      message.pollOptions.forEach(opt => opt.votedBy.forEach(id => uniqueVoters.add(id)));
+      const totalVoters = uniqueVoters.size;
+
+      return (
+        <div className="waPollContainer">
+          <div className="waPollQuestion">📊 {message.text}</div>
+          <div className="waPollMultipleText">{message.allowMultiple ? "Select one or more" : "Select one"}</div>
+          <div className="waPollOptionsList">
+            {message.pollOptions.map((opt) => {
+              const hasVoted = opt.votedBy.includes("me");
+              const percent = totalVoters > 0 ? (opt.votedBy.length / totalVoters) * 100 : 0;
+              
+              return (
+                <div key={opt.id} className="waPollOption" onClick={() => onVote(opt.id)}>
+                  <div className="waPollOptionControl">
+                    <div className={`waPollCheckbox ${message.allowMultiple ? 'square' : 'circle'} ${hasVoted ? 'active' : ''}`}>
+                      {hasVoted && (message.allowMultiple ? '✓' : <div className="waPollRadioDot" />)}
+                    </div>
+                  </div>
+                  <div className="waPollOptionBody">
+                    <div className="waPollOptionHeader">
+                      <span className="waPollOptionText">{opt.text}</span>
+                      {opt.votedBy.length > 0 && <span className="waPollOptionCount">{opt.votedBy.length}</span>}
+                    </div>
+                    <div className="waPollProgressTrack">
+                      <div className="waPollProgressFill" style={{ width: `${percent}%` }} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="waPollFooter">{totalVoters} vote{totalVoters !== 1 ? 's' : ''}</div>
+        </div>
+      );
     }
-    return <div className={`waBubbleText ${message.deletedForAll ? "deleted" : ""}`}>{message.displayText ?? renderTextWithMentions(message.text) ?? ""}</div>;
+
+    const urlMatch = message.text?.match(/https?:\/\/[^\s]+/i)?.[0];
+    const hasLinkPreview = message.linkPreview && !message.deletedForAll && urlMatch;
+
+    return (
+      <div className={`waBubbleText ${message.deletedForAll ? "deleted" : ""}`}>
+        {message.displayText ?? (
+          urlMatch && !hasLinkPreview 
+            ? <a href={urlMatch} target="_blank" rel="noreferrer" className="chatLinkPreview" onClick={(e) => selectionMode && e.preventDefault()}>{message.text}</a>
+            : renderTextWithMentions(message.text)
+        ) ?? ""}
+        
+        {hasLinkPreview && (
+          <a href={urlMatch} target="_blank" rel="noreferrer" className="waLinkPreviewCard" onClick={(e) => selectionMode && e.preventDefault()}>
+            <img src={message.linkPreview.imageUrl} alt="Preview" className="waLinkPreviewImage" />
+            <div className="waLinkPreviewContent">
+              <div className="waLinkPreviewTitle">{message.linkPreview.title}</div>
+              <div className="waLinkPreviewDesc">{message.linkPreview.description}</div>
+              <div className="waLinkPreviewDomain">{message.linkPreview.domain}</div>
+            </div>
+          </a>
+        )}
+      </div>
+    );
   };
 
   const renderContextMenu = () => {
     if (!menuPos.visible || selectionMode) return null;
     
-    // Determine positioning. On mobile it might be relative, on desktop it's fixed.
-    const isMobile = window.innerWidth <= 768;
-    const style = isMobile ? {} : { position: 'fixed', top: menuPos.y, left: menuPos.x, margin: 0, zIndex: 10000 };
+    // Fixed positioning breaks out of overflow containers natively
+    const style = { 
+      position: 'fixed', 
+      top: menuPos.y, 
+      left: menuPos.x, 
+      margin: 0, 
+      zIndex: 9999999 
+    };
 
     return (
       <div className={`waBubbleMenu ${isMine ? "mine" : "theirs"}`} style={style} onClick={e => e.stopPropagation()}>
@@ -187,12 +289,12 @@ export default function MessageBubble({
       <div className="waBubbleContainer" ref={wrapRef} onClick={handleBubbleClick}>
         <div className="swipeReplyIcon" style={{ opacity: swipeX / 50, transform: `translateX(${swipeX - 40}px) scale(${Math.min(swipeX / 50, 1)})`}}>↩</div>
 
-        {/* UX Polish: Hover Actions (Desktop) */}
+        {/* Hover Actions (Desktop) */}
         {!selectionMode && !message.deletedForAll && (
           <div className="waHoverActions">
             <button onClick={(e) => { e.stopPropagation(); setShowHoverReactions(!showHoverReactions); }} title="React">😀</button>
             <button onClick={(e) => { e.stopPropagation(); onReply?.(); }} title="Reply">↩</button>
-            <button onClick={(e) => { e.stopPropagation(); setMenuPos({ visible: true, x: e.clientX, y: e.clientY }); }} title="Menu">▾</button>
+            <button onClick={handleChevronClick} title="Menu">▾</button>
             
             {showHoverReactions && (
               <div className="waHoverReactionsMenu">
@@ -214,14 +316,16 @@ export default function MessageBubble({
         >
           {/* Mobile menu trigger */}
           {!selectionMode && (
-            <button type="button" className="waBubbleMenuBtn mobile-only" aria-label="Message options" onClick={(e) => { e.stopPropagation(); setMenuPos({ visible: true, x: e.clientX, y: e.clientY }); }}>▾</button>
+            <button type="button" className="waBubbleMenuBtn mobile-only" aria-label="Message options" onClick={handleChevronClick}>▾</button>
           )}
 
+          {/* Group sender name */}
           {!isMine && message.senderName && !message.deletedForAll && (
              <div className="waSenderName">{message.senderName}</div>
           )}
 
           <ReplySnippet replyTo={message.replyTo} onClick={() => { if(!selectionMode) onScrollToReply?.(message.replyTo.id); }} />
+          
           {displayContent()}
 
           <div className="waBubbleFooter">
@@ -231,6 +335,7 @@ export default function MessageBubble({
             {isMine && !message.deletedForAll && <span className={`waStatus ${message.status || "sent"}`}>{message.status === 'sent' ? '✓' : '✓✓'}</span>}
           </div>
 
+          {/* Reactions display */}
           {message.reactions && message.reactions.length > 0 && (
             <div className="waReactionsDisplay">
               {message.reactions.map((emoji, i) => <span key={i} className="waReactionBadge">{emoji}</span>)}

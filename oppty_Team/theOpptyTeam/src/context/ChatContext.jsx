@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useReducer } from "react";
 import { getAuthUser } from "../utils/auth.js";
 
-const STORAGE_KEY = "opty_chat_v5";
+const STORAGE_KEY = "opty_chat_v7";
 
 function uid() {
   return crypto?.randomUUID?.() ?? `${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -32,6 +32,42 @@ function safeTime(value) {
   return now();
 }
 
+function generateMockLinkPreview(text) {
+  const urlMatch = text.match(/https?:\/\/[^\s]+/i);
+  if (!urlMatch) return null;
+  
+  try {
+    const url = new URL(urlMatch[0]);
+    let preview = {
+      domain: url.hostname.replace('www.', ''),
+      title: "Shared Link Overview",
+      description: "Tap to preview the website content shared in this link.",
+      imageUrl: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=400&q=80"
+    };
+
+    if (url.hostname.includes('youtube.com') || url.hostname.includes('youtu.be')) {
+      preview.title = "YouTube Video";
+      preview.description = "Watch this video on YouTube.";
+      preview.imageUrl = "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&q=80";
+    } else if (url.hostname.includes('github.com')) {
+      preview.title = "GitHub Repository";
+      preview.description = "Contribute to this project on GitHub.";
+      preview.imageUrl = "https://images.unsplash.com/photo-1618401471353-b98a520d9c44?w=400&q=80";
+    }
+
+    return preview;
+  } catch (e) {
+    return null;
+  }
+}
+
+function getDisappearingThreshold(mode) {
+  if (mode === "24h") return 24 * 60 * 60 * 1000;
+  if (mode === "7d") return 7 * 24 * 60 * 60 * 1000;
+  if (mode === "90d") return 90 * 24 * 60 * 60 * 1000;
+  return null;
+}
+
 const seed = [
   {
     id: "1",
@@ -44,6 +80,7 @@ const seed = [
     contact: "elena@oppty.com",
     blocked: false,
     hasLeft: false,
+    disappearingMode: "off",
     messages: [
       {
         id: uid(),
@@ -90,6 +127,7 @@ const seed = [
     contact: "Not available",
     blocked: false,
     hasLeft: false,
+    disappearingMode: "off",
     messages: [
       {
         id: uid(),
@@ -137,6 +175,7 @@ const seed = [
     isAdmin: true,
     blocked: false,
     hasLeft: false,
+    disappearingMode: "off",
     members: [
       { id: "emp-1", name: "Employee One", email: "employee@oppty.com", avatarUrl: "https://i.pravatar.cc/100?img=11", isAdmin: false },
       { id: "emp-3", name: "Maya", email: "maya@oppty.com", avatarUrl: "https://i.pravatar.cc/100?img=21", isAdmin: true },
@@ -150,17 +189,14 @@ const seed = [
 
 function normalizeAndMerge(persisted) {
   if (!Array.isArray(persisted)) return seed;
+  const nowMs = now();
 
-  const persistedNormalized = persisted.map((c) => ({
-    ...c,
-    kind: c.kind ?? "dm",
-    about: c.about ?? "Hey there! I am using Oppty Chats.",
-    contact: c.contact ?? "Not available",
-    isAdmin: c.isAdmin ?? false,
-    blocked: c.blocked ?? false,
-    hasLeft: c.hasLeft ?? false,
-    members: Array.isArray(c.members) ? c.members.map(m => ({ ...m, isAdmin: m.isAdmin ?? false })) : [],
-    messages: Array.isArray(c.messages)
+  const persistedNormalized = persisted.map((c) => {
+    const disappearingMode = c.disappearingMode ?? "off";
+    const threshold = getDisappearingThreshold(disappearingMode);
+    
+    // First, map and ensure all expected message properties exist
+    const rawMessages = Array.isArray(c.messages)
       ? c.messages.map((m) => ({
           ...m,
           id: m.id ?? uid(),
@@ -179,10 +215,33 @@ function normalizeAndMerge(persisted) {
           unread: m.unread ?? false,
           reactions: Array.isArray(m.reactions) ? m.reactions : [],
           isStarred: m.isStarred ?? false,
-          isPinned: m.isPinned ?? false
+          isPinned: m.isPinned ?? false,
+          linkPreview: m.linkPreview ?? null,
+          pollOptions: Array.isArray(m.pollOptions) ? m.pollOptions : [],
+          allowMultiple: m.allowMultiple ?? false
         }))
-      : [],
-  }));
+      : [];
+
+    // Then, filter out messages that have expired (unless they are pinned)
+    const activeMessages = rawMessages.filter(m => {
+      if (m.isPinned) return true;
+      if (threshold && (nowMs - m.createdAt > threshold)) return false;
+      return true;
+    });
+
+    return {
+      ...c,
+      kind: c.kind ?? "dm",
+      about: c.about ?? "Hey there! I am using Oppty Chats.",
+      contact: c.contact ?? "Not available",
+      isAdmin: c.isAdmin ?? false,
+      blocked: c.blocked ?? false,
+      hasLeft: c.hasLeft ?? false,
+      disappearingMode,
+      members: Array.isArray(c.members) ? c.members.map(m => ({ ...m, isAdmin: m.isAdmin ?? false })) : [],
+      messages: activeMessages
+    };
+  });
 
   const byId = new Map(persistedNormalized.map((c) => [c.id, c]));
   for (const s of seed) {
@@ -208,17 +267,65 @@ function reducer(state, action) {
     case "INIT": return { chats: action.chats };
     case "RESET": saveChats(seed); return { chats: seed };
 
+    // --- SWEEP EXPIRED MESSAGES BACKGROUND TASK ---
+    case "CLEAN_EXPIRED": {
+      const nowMs = now();
+      let changed = false;
+
+      const chats = state.chats.map(c => {
+        const threshold = getDisappearingThreshold(c.disappearingMode);
+        if (!threshold) return c;
+
+        const initialLen = c.messages.length;
+        const validMessages = c.messages.filter(m => {
+          if (m.isPinned) return true;
+          return (nowMs - m.createdAt) <= threshold;
+        });
+
+        if (validMessages.length !== initialLen) {
+          changed = true;
+          return { ...c, messages: validMessages };
+        }
+        return c;
+      });
+
+      if (changed) {
+        saveChats(chats);
+        return { chats };
+      }
+      return state;
+    }
+
+    case "SET_DISAPPEARING_MODE": {
+      const chats = state.chats.map((c) => {
+        if (c.id !== action.chatId) return c;
+        const text = action.mode === "off"
+          ? "You turned off disappearing messages."
+          : `You turned on disappearing messages. New messages will disappear from this chat after ${action.mode === '24h' ? '24 hours' : action.mode === '7d' ? '7 days' : '90 days'}.`;
+        
+        return {
+          ...c,
+          disappearingMode: action.mode,
+          messages: [...c.messages, createSystemMessage(c.id, text)]
+        };
+      });
+      saveChats(chats);
+      return { chats };
+    }
+
     case "SEND": {
       const text = action.text.trim();
       if (!text) return state;
       const target = state.chats.find((c) => c.id === action.chatId);
       if (!target || target.blocked || target.hasLeft) return state;
 
+      const linkPreview = generateMockLinkPreview(text);
+
       const msg = {
         id: uid(), chatId: action.chatId, sender: "me", senderName: "You", type: "text",
         text, createdAt: now(), 
         replyTo: action.replyTo ? { id: action.replyTo.id, text: action.replyTo.text, type: action.replyTo.type, fileName: action.replyTo.fileName, senderName: action.replyTo.senderName || (action.replyTo.sender === 'me' ? 'You' : 'Them') } : null,
-        deletedForAll: false, status: "read", unread: false, reactions: [], isStarred: false, isPinned: false
+        deletedForAll: false, status: "read", unread: false, reactions: [], isStarred: false, isPinned: false, linkPreview
       };
       const chats = state.chats.map((c) => c.id === action.chatId ? { ...c, messages: [...c.messages, msg] } : c);
       saveChats(chats);
@@ -237,6 +344,47 @@ function reducer(state, action) {
         deletedForAll: false, status: "read", unread: false, reactions: [], isStarred: false, isPinned: false
       };
       const chats = state.chats.map((c) => c.id === action.chatId ? { ...c, messages: [...c.messages, msg] } : c);
+      saveChats(chats);
+      return { chats };
+    }
+
+    case "SEND_POLL": {
+      const target = state.chats.find((c) => c.id === action.chatId);
+      if (!target || target.blocked || target.hasLeft) return state;
+
+      const msg = {
+        id: uid(), chatId: action.chatId, sender: "me", senderName: "You", type: "poll",
+        text: action.question, createdAt: now(),
+        pollOptions: action.options.map(opt => ({ id: uid(), text: opt, votedBy: [] })),
+        allowMultiple: action.allowMultiple,
+        replyTo: null, deletedForAll: false, status: "read", unread: false, reactions: [], isStarred: false, isPinned: false
+      };
+      const chats = state.chats.map((c) => c.id === action.chatId ? { ...c, messages: [...c.messages, msg] } : c);
+      saveChats(chats);
+      return { chats };
+    }
+
+    case "VOTE_POLL": {
+      const chats = state.chats.map((chat) => {
+        if (chat.id !== action.chatId) return chat;
+        return {
+          ...chat,
+          messages: chat.messages.map((msg) => {
+            if (msg.id !== action.messageId || msg.type !== "poll") return msg;
+            const userId = "me"; 
+            const newOptions = msg.pollOptions.map(opt => {
+              if (opt.id === action.optionId) {
+                const hasVoted = opt.votedBy.includes(userId);
+                return { ...opt, votedBy: hasVoted ? opt.votedBy.filter(id => id !== userId) : [...opt.votedBy, userId] };
+              } else if (!msg.allowMultiple) {
+                return { ...opt, votedBy: opt.votedBy.filter(id => id !== userId) };
+              }
+              return opt;
+            });
+            return { ...msg, pollOptions: newOptions };
+          })
+        };
+      });
       saveChats(chats);
       return { chats };
     }
@@ -313,7 +461,7 @@ function reducer(state, action) {
       if (!name) return state;
       const newChat = {
         id: uid(), kind: "dm", name, avatarUrl: action.payload.avatarUrl || `https://i.pravatar.cc/100?u=${encodeURIComponent(name + Date.now())}`,
-        isOnline: false, lastSeen: "last seen recently", about: "Hey there! I am using Oppty Chats.", contact: action.payload.contact?.trim() || "Not available", blocked: false, hasLeft: false, messages: [],
+        isOnline: false, lastSeen: "last seen recently", about: "Hey there! I am using Oppty Chats.", contact: action.payload.contact?.trim() || "Not available", blocked: false, hasLeft: false, disappearingMode: "off", messages: [],
       };
       const chats = [newChat, ...state.chats];
       saveChats(chats);
@@ -326,7 +474,7 @@ function reducer(state, action) {
       const sysMsg = createSystemMessage(uid(), "You created this group");
       const newGroup = {
         id: sysMsg.chatId, kind: "group", name, avatarUrl: action.payload.avatarUrl || `https://i.pravatar.cc/100?u=${encodeURIComponent("group_" + name + Date.now())}`,
-        isOnline: false, lastSeen: "", about: action.payload.about?.trim() || "New group created in Oppty Chats.", contact: action.payload.contact?.trim() || "Not available", isAdmin: true, blocked: false, hasLeft: false, members: [], messages: [sysMsg],
+        isOnline: false, lastSeen: "", about: action.payload.about?.trim() || "New group created in Oppty Chats.", contact: action.payload.contact?.trim() || "Not available", isAdmin: true, blocked: false, hasLeft: false, disappearingMode: "off", members: [], messages: [sysMsg],
       };
       const chats = [newGroup, ...state.chats];
       saveChats(chats);
@@ -429,7 +577,6 @@ function reducer(state, action) {
   }
 }
 
-// Global Toast Container Component
 function ToastContainer({ toasts }) {
   return (
     <div className="globalToastContainer">
@@ -444,19 +591,13 @@ function ToastContainer({ toasts }) {
 
 export function ChatProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, { chats: seed });
-  
-  // UX Polish: App Loading State
   const [isLoading, setIsLoading] = useState(true);
-  
-  // UX Polish: Toast Notification System
   const [toasts, setToasts] = useState([]);
 
   const showToast = (message, type = 'success') => {
     const id = Date.now() + Math.random();
     setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-    }, 3000);
+    setTimeout(() => { setToasts(prev => prev.filter(t => t.id !== id)); }, 3000);
   };
 
   useEffect(() => {
@@ -464,20 +605,27 @@ export function ChatProvider({ children }) {
     const merged = normalizeAndMerge(persisted);
     dispatch({ type: "INIT", chats: merged });
     saveChats(merged);
-    
-    // Simulate slight loading delay for skeletons
     const timer = setTimeout(() => setIsLoading(false), 600);
-    return () => clearTimeout(timer);
+    
+    // Background task: sweep expired disappearing messages every 60 seconds
+    const cleanupInterval = setInterval(() => {
+      dispatch({ type: "CLEAN_EXPIRED" });
+    }, 60000);
+
+    return () => {
+      clearTimeout(timer);
+      clearInterval(cleanupInterval);
+    };
   }, []);
 
   const api = useMemo(
     () => ({
-      isLoading,
-      showToast,
-      chats: state.chats,
+      isLoading, showToast, chats: state.chats,
       getChatById: (id) => state.chats.find((c) => String(c.id) === String(id)),
       sendMessage: (chatId, text, replyTo = null) => dispatch({ type: "SEND", chatId, text, replyTo }),
       sendAttachment: (chatId, attachmentType, fileUrl, fileName, replyTo = null) => dispatch({ type: "SEND_ATTACHMENT", chatId, attachmentType, fileUrl, fileName, replyTo }),
+      sendPoll: (chatId, question, options, allowMultiple) => dispatch({ type: "SEND_POLL", chatId, question, options, allowMultiple }),
+      votePoll: (chatId, messageId, optionId) => dispatch({ type: "VOTE_POLL", chatId, messageId, optionId }),
       editMessage: (chatId, messageId, text) => dispatch({ type: "EDIT_MESSAGE", chatId, messageId, text }),
       toggleReaction: (chatId, messageId, emoji) => dispatch({ type: "TOGGLE_REACTION", chatId, messageId, emoji }),
       toggleStar: (chatId, messageId) => dispatch({ type: "TOGGLE_STAR", chatId, messageId }),
@@ -491,6 +639,7 @@ export function ChatProvider({ children }) {
       updateGroupAbout: (chatId, about) => dispatch({ type: "UPDATE_GROUP_ABOUT", chatId, about }),
       deleteChat: (chatId) => dispatch({ type: "DELETE_CHAT", chatId }),
       toggleBlockChat: (chatId) => dispatch({ type: "TOGGLE_BLOCK_CHAT", chatId }),
+      setDisappearingMode: (chatId, mode) => dispatch({ type: "SET_DISAPPEARING_MODE", chatId, mode }),
       
       addGroupMember: (chatId, member) => dispatch({ type: "ADD_GROUP_MEMBER", chatId, member }),
       removeGroupMember: (chatId, memberId) => dispatch({ type: "REMOVE_GROUP_MEMBER", chatId, memberId }),

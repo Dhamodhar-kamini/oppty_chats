@@ -3033,3 +3033,303 @@
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+
+/* ---- RICH LINK PREVIEWS ---- */
+.waLinkPreviewCard {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 8px;
+  overflow: hidden;
+  text-decoration: none;
+  color: var(--text);
+  border-left: 4px solid #00a884;
+}
+
+.waRow.mine .waLinkPreviewCard {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.waLinkPreviewImage {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  background: #e9edef;
+}
+
+.waLinkPreviewContent {
+  padding: 10px 12px;
+}
+
+.waLinkPreviewTitle {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.waLinkPreviewDesc {
+  font-size: 13px;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.waLinkPreviewDomain {
+  font-size: 11px;
+  color: #54656f;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+
+/* ---- GROUP POLLS (BUBBLE) ---- */
+.waPollContainer {
+  min-width: 250px;
+  padding: 4px 0;
+}
+
+.waPollQuestion {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.waPollMultipleText {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.waPollOptionsList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.waPollOption {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+
+.waPollOption:hover {
+  background: rgba(0,0,0,0.05);
+}
+
+.waPollOptionControl {
+  flex-shrink: 0;
+}
+
+.waPollCheckbox {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #8c9fa8;
+  display: grid;
+  place-items: center;
+  color: white;
+  transition: all 0.2s;
+}
+
+.waPollCheckbox.circle { border-radius: 50%; }
+.waPollCheckbox.square { border-radius: 6px; }
+
+.waPollCheckbox.active.square {
+  background: #00a884;
+  border-color: #00a884;
+}
+
+.waPollCheckbox.active.circle {
+  border-color: #00a884;
+}
+
+.waPollRadioDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #00a884;
+}
+
+.waPollOptionBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.waPollOptionHeader {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.waPollOptionText {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.waPollOptionCount {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.waPollProgressTrack {
+  height: 4px;
+  background: rgba(0,0,0,0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.waPollProgressFill {
+  height: 100%;
+  background: #00a884;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.waPollFooter {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+  margin-top: 12px;
+  border-top: 1px solid rgba(0,0,0,0.08);
+  padding-top: 8px;
+}
+
+
+/* ---- POLL CREATION MODAL ---- */
+.pollModal {
+  padding: 0;
+}
+
+.pollModalBody {
+  padding: 20px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.pollOptionsEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.pollOptionRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.deleteOptBtn {
+  color: #d93025;
+}
+
+.addOptBtn {
+  border: none;
+  background: transparent;
+  color: #00a884;
+  font-weight: 600;
+  text-align: left;
+  padding: 8px 0;
+  cursor: pointer;
+  width: fit-content;
+}
+
+.addOptBtn:hover {
+  text-decoration: underline;
+}
+
+.pollToggleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+  cursor: pointer;
+}
+
+.pollToggleRow span {
+  font-size: 14px;
+  color: var(--text);
+  font-weight: 500;
+}
+
+
+/* ---- WHATSAPP STYLE ATTACHMENT MENU ---- */
+.waAttachMenu {
+  position: absolute;
+  bottom: 60px;
+  left: -10px;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(11, 20, 26, 0.16);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 100;
+  width: max-content;
+  transform-origin: bottom left;
+  animation: scaleInBottomLeft 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.waAttachMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  padding: 6px 12px;
+  border-radius: 12px;
+  margin: -6px -12px;
+  transition: background 0.15s ease;
+}
+
+.waAttachMenuItem:hover {
+  background: #f5f6f6;
+}
+
+.waAttachMenuItem span {
+  font-size: 15px;
+  color: #111b21;
+  font-weight: 500;
+}
+
+.waAttachIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  transition: transform 0.15s;
+}
+
+.waAttachMenuItem:hover .waAttachIcon {
+  transform: scale(1.05);
+}
+
+.waAttachIcon-doc { background: linear-gradient(135deg, #7F66FF, #5E4AD8); }
+.waAttachIcon-image { background: linear-gradient(135deg, #007bfc, #005eb8); }
+.waAttachIcon-poll { background: linear-gradient(135deg, #FFBC38, #E5A11E); }
+.waAttachIcon-contact { background: linear-gradient(135deg, #009DE2, #007bb5); }
+
+@keyframes scaleInBottomLeft {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
