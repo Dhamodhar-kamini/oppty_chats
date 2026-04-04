@@ -1,60 +1,39 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useChats } from "../../context/ChatContext.jsx";
+import { employeeDB } from "../../data/employees"; 
 import profileImg from "../../assets/profiledp.jpeg";
 import AppLoader from "../common/AppLoader.jsx";
-import companyLogo from "../../assets/opptylogo.png";
 import "./Sidebar.css";
 
-function ChatsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4v-4H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" /></svg>
-  );
-}
+// Sync local storage to DB so new employees survive page reloads
+try {
+  const savedEmps = JSON.parse(localStorage.getItem("opty_employees"));
+  if (savedEmps && Array.isArray(savedEmps) && savedEmps.length >= employeeDB.length) {
+    employeeDB.length = 0; 
+    employeeDB.push(...savedEmps); 
+  }
+} catch(e) {}
 
-function GroupsIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.67 0-8 1.34-8 4v2h12v-2c0-2.66-5.33-4-4-4zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.95v2h7v-2c0-2.66-5.33-4-8-4z" /></svg>
-  );
-}
+function ChatsIcon() { return (<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4v-4H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" /></svg>); }
+function GroupsIcon() { return (<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.67 0-8 1.34-8 4v2h12v-2c0-2.66-5.33-4-4-4zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.95v2h7v-2c0-2.66-5.33-4-8-4z" /></svg>); }
+function NewChatIcon() { return (<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z" /></svg>); }
+function SearchIcon() { return (<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M15.009 13.805h-.636l-.22-.219a5.184 5.184 0 0 0 1.256-3.386 5.207 5.207 0 1 0-5.207 5.208 5.183 5.183 0 0 0 3.385-1.255l.221.22v.635l4.004 3.999 1.194-1.195-3.997-4.007zm-4.808 0a3.605 3.605 0 1 1 0-7.21 3.605 3.605 0 0 1 0 7.21z" /></svg>); }
+function StarIcon() { return (<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" /></svg>); }
+function AddUserIcon() { return (<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M15 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm-9-2V7H4v3H1v2h3v3h2v-3h3v-2H6zm9 4c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>); }
 
-function NewChatIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z" /></svg>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M15.009 13.805h-.636l-.22-.219a5.184 5.184 0 0 0 1.256-3.386 5.207 5.207 0 1 0-5.207 5.208 5.183 5.183 0 0 0 3.385-1.255l.221.22v.635l4.004 3.999 1.194-1.195-3.997-4.007zm-4.808 0a3.605 3.605 0 1 1 0-7.21 3.605 3.605 0 0 1 0 7.21z" /></svg>
-  );
-}
-
-function StarIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" /></svg>
-  );
-}
-
-const ICON_BY_ID = {
-  chats: <ChatsIcon />,
-  groups: <GroupsIcon />,
-};
+const ICON_BY_ID = { chats: <ChatsIcon />, groups: <GroupsIcon /> };
 
 function getAuthUser() {
-  try {
-    const raw = localStorage.getItem("employeeAuth");
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
+  try { const raw = localStorage.getItem("employeeAuth"); return raw ? JSON.parse(raw) : null; } 
+  catch { return null; }
 }
 
 function isLink(text) { return /^https?:\/\//i.test(text || ""); }
 
 export default function Sidebar({ isChatOpen }) {
   const navigate = useNavigate();
-  const { chats, addContact, addGroup } = useChats();
+  const { chats, addContact, addGroup, showToast } = useChats();
 
   const authUser = getAuthUser();
   const isAdminUser = authUser?.role === "admin";
@@ -64,30 +43,31 @@ export default function Sidebar({ isChatOpen }) {
   const [isViewingProfile, setIsViewingProfile] = useState(false);
 
   const [showCreatePopup, setShowCreatePopup] = useState(false);
-  const [createMode, setCreateMode] = useState("menu");
+  const [createMode, setCreateMode] = useState("contacts"); 
+  const [contactSearchTerm, setContactSearchTerm] = useState("");
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // Drawers State
   const [activeDrawer, setActiveDrawer] = useState("none"); 
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const [globalSearchFilter, setGlobalSearchFilter] = useState("all"); 
 
-  const [newContactName, setNewContactName] = useState("");
-  const [newContactEmail, setNewContactEmail] = useState("");
-
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupAbout, setNewGroupAbout] = useState("");
 
+  const [newEmpName, setNewEmpName] = useState("");
+  const [newEmpEmail, setNewEmpEmail] = useState("");
+  const [newEmpPassword, setNewEmpPassword] = useState("");
+  const [empUpdateTrigger, setEmpUpdateTrigger] = useState(0);
+
+  // FIX: Properly initialize the photo from the logged-in authUser's avatarUrl
   const [profile, setProfile] = useState({
     name: authUser?.name || "Your Name",
     email: authUser?.email || "yourmail@example.com",
     phone: "+91 9876543210",
-    bio: isAdminUser
-      ? "Administrator access enabled for complete dashboard control."
-      : "Passionate about building beautiful chat experiences.",
-    photo: profileImg,
+    bio: isAdminUser ? "Administrator access enabled." : "Passionate about building beautiful chat experiences.",
+    photo: authUser?.avatarUrl || profileImg,
   });
 
   const [draftName, setDraftName] = useState(profile.name);
@@ -113,83 +93,114 @@ export default function Sidebar({ isChatOpen }) {
   };
 
   const handleTogglePopup = () => {
-    setShowProfilePopup((prev) => !prev);
-    setShowCreatePopup(false);
-    setActiveDrawer("none");
-    setShowLogoutConfirm(false);
-    setIsEditingProfile(false);
-    setIsViewingProfile(false);
-    setDraftName(profile.name);
-    setDraftPhoto(profile.photo);
+    setShowProfilePopup((prev) => !prev); setShowCreatePopup(false); setActiveDrawer("none");
+    setShowLogoutConfirm(false); setIsEditingProfile(false); setIsViewingProfile(false);
+    setDraftName(profile.name); setDraftPhoto(profile.photo);
   };
 
   const handleCloseAll = () => {
-    setShowProfilePopup(false);
-    setShowCreatePopup(false);
-    setActiveDrawer("none");
-    setShowLogoutConfirm(false);
-    setIsEditingProfile(false);
-    setIsViewingProfile(false);
-    setDraftName(profile.name);
-    setDraftPhoto(profile.photo);
+    setShowProfilePopup(false); setShowCreatePopup(false); setActiveDrawer("none");
+    setShowLogoutConfirm(false); setIsEditingProfile(false); setIsViewingProfile(false);
+    setDraftName(profile.name); setDraftPhoto(profile.photo);
   };
 
   const handleToggleDrawer = (drawerName) => {
-    if (activeDrawer === drawerName) {
-      setActiveDrawer("none");
-    } else {
-      setActiveDrawer(drawerName);
-      setShowProfilePopup(false);
-      setShowCreatePopup(false);
-    }
+    if (activeDrawer === drawerName) setActiveDrawer("none");
+    else { setActiveDrawer(drawerName); setShowProfilePopup(false); setShowCreatePopup(false); }
   };
 
-  // ----- BULLETPROOF GLOBAL SEARCH LOGIC -----
   const globalSearchResults = useMemo(() => {
     if (!globalSearchQuery.trim() && globalSearchFilter === "all") return [];
-    
     let results = [];
     const q = globalSearchQuery.trim().toLowerCase();
 
     chats.forEach((c) => {
       c.messages.forEach((m) => {
         if (m.deletedForAll || m.type === "system") return;
-
         let matchesQuery = true;
         if (q) {
           const textMatch = m.text ? m.text.toLowerCase().includes(q) : false;
           const fileMatch = m.fileName ? m.fileName.toLowerCase().includes(q) : false;
           const senderMatch = m.senderName ? m.senderName.toLowerCase().includes(q) : false;
           const chatNameMatch = c.name ? c.name.toLowerCase().includes(q) : false;
-          
           matchesQuery = textMatch || fileMatch || senderMatch || chatNameMatch;
         }
-
         let matchesFilter = true;
         if (globalSearchFilter === "media") matchesFilter = m.type === "image";
         if (globalSearchFilter === "docs") matchesFilter = m.type === "document";
         if (globalSearchFilter === "links") matchesFilter = isLink(m.text);
 
-        if (matchesQuery && matchesFilter) {
-          results.push({ chat: c, message: m });
-        }
+        if (matchesQuery && matchesFilter) results.push({ chat: c, message: m });
       });
     });
     return results.sort((a, b) => b.message.createdAt - a.message.createdAt);
   }, [chats, globalSearchQuery, globalSearchFilter]);
 
-  // ----- STARRED MESSAGES LOGIC -----
   const starredMessages = useMemo(() => {
     let results = [];
-    chats.forEach((c) => {
-      c.messages.forEach((m) => {
-        if (m.isStarred && !m.deletedForAll && m.type !== "system") {
-          results.push({ chat: c, message: m });
-        }
-      });
-    });
+    chats.forEach((c) => { c.messages.forEach((m) => { if (m.isStarred && !m.deletedForAll && m.type !== "system") results.push({ chat: c, message: m }); }); });
     return results.sort((a, b) => b.message.createdAt - a.message.createdAt);
   }, [chats]);
+
+  const filteredContacts = useMemo(() => {
+    const q = contactSearchTerm.toLowerCase();
+    return employeeDB.filter(emp => emp.email !== profile.email).filter(emp => 
+      emp.name.toLowerCase().includes(q) || emp.email.toLowerCase().includes(q)
+    );
+  }, [contactSearchTerm, profile.email, empUpdateTrigger]); 
+
+  const handleStartDirectMessage = (emp) => {
+    const existingChat = chats.find(c => c.kind === "dm" && c.participants?.includes(emp.email));
+    
+    if (existingChat) {
+      handleCloseAll();
+      navigate(`/chats/${existingChat.id}`);
+    } else {
+      const newChatId = `dm_${Date.now()}`;
+      addContact({
+        id: newChatId,
+        name: emp.name,
+        contact: emp.email,
+        avatarUrl: emp.avatarUrl,
+        about: emp.role === "admin" ? "Admin Account" : "Available for chat"
+      });
+      handleCloseAll();
+      navigate(`/chats/${newChatId}`);
+    }
+  };
+
+  const handleCreateGroup = () => {
+    if (!isAdminUser) return;
+    const name = newGroupName.trim();
+    if (!name) return;
+    addGroup({ name, about: newGroupAbout });
+    handleCloseAll(); navigate("/groups");
+  };
+
+  const handleCreateEmployee = () => {
+    if (!isAdminUser) return;
+    if (!newEmpName.trim() || !newEmpEmail.trim() || !newEmpPassword.trim()) return;
+
+    const newEmp = {
+      id: `emp-${Date.now()}`,
+      name: newEmpName.trim(),
+      email: newEmpEmail.trim(),
+      password: newEmpPassword.trim(),
+      role: "employee",
+      avatarUrl: `https://i.pravatar.cc/100?u=${encodeURIComponent(newEmpEmail.trim())}`
+    };
+
+    employeeDB.push(newEmp);
+    localStorage.setItem("opty_employees", JSON.stringify(employeeDB));
+
+    setEmpUpdateTrigger(prev => prev + 1);
+    showToast("Employee account created successfully!");
+    setCreateMode("contacts");
+    
+    setNewEmpName("");
+    setNewEmpEmail("");
+    setNewEmpPassword("");
+  };
 
   const handleJumpToMessage = (chatId, msgId) => {
     navigate(`/${chats.find(c => c.id === chatId)?.kind === 'group' ? 'groups' : 'chats'}/${chatId}?msg=${msgId}`);
@@ -201,8 +212,7 @@ export default function Sidebar({ isChatOpen }) {
   const handleBackToMenu = () => { setIsEditingProfile(false); setIsViewingProfile(false); };
   const handleCancelEdit = () => { setIsEditingProfile(false); setDraftName(profile.name); setDraftPhoto(profile.photo); };
   const handleSaveProfile = () => {
-    const trimmedName = draftName.trim();
-    if (!trimmedName) return;
+    const trimmedName = draftName.trim(); if (!trimmedName) return;
     setProfile({ ...profile, name: trimmedName, photo: draftPhoto });
     saveAuthUser({ name: trimmedName, photo: draftPhoto });
     setIsEditingProfile(false);
@@ -214,35 +224,7 @@ export default function Sidebar({ isChatOpen }) {
   };
 
   const handlePhotoButtonClick = () => fileInputRef.current?.click();
-  const handlePhotoChange = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setDraftPhoto(URL.createObjectURL(file));
-  };
-
-  const handleToggleCreatePopup = () => {
-    if (!isAdminUser) return;
-    setShowCreatePopup((prev) => !prev);
-    setShowProfilePopup(false);
-    setActiveDrawer("none");
-    setCreateMode("menu");
-  };
-
-  const handleCreateContact = () => {
-    if (!isAdminUser) return;
-    const name = newContactName.trim();
-    if (!name) return;
-    addContact({ name, contact: newContactEmail });
-    handleCloseAll(); navigate("/chats");
-  };
-
-  const handleCreateGroup = () => {
-    if (!isAdminUser) return;
-    const name = newGroupName.trim();
-    if (!name) return;
-    addGroup({ name, about: newGroupAbout });
-    handleCloseAll(); navigate("/groups");
-  };
+  const handlePhotoChange = (event) => { const file = event.target.files?.[0]; if (!file) return; setDraftPhoto(URL.createObjectURL(file)); };
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -281,99 +263,128 @@ export default function Sidebar({ isChatOpen }) {
 
           <div className="sidebar-divider" />
 
-          <button
-            type="button"
-            className={`sidebar-item sidebar-action-btn ${activeDrawer === "search" ? "active" : ""}`}
-            title="Global Search"
-            onClick={() => handleToggleDrawer("search")}
-          >
+          <button type="button" className={`sidebar-item sidebar-action-btn ${activeDrawer === "search" ? "active" : ""}`} title="Global Search" onClick={() => handleToggleDrawer("search")}>
             <span className="sidebar-icon"><SearchIcon /></span>
           </button>
-          <button
-            type="button"
-            className={`sidebar-item sidebar-action-btn ${activeDrawer === "starred" ? "active" : ""}`}
-            title="Starred Messages"
-            onClick={() => handleToggleDrawer("starred")}
-          >
+          <button type="button" className={`sidebar-item sidebar-action-btn ${activeDrawer === "starred" ? "active" : ""}`} title="Starred Messages" onClick={() => handleToggleDrawer("starred")}>
             <span className="sidebar-icon"><StarIcon /></span>
           </button>
 
-          {isAdminUser && (
-            <>
-              <div className="sidebar-divider" />
-              <div className="sidebar-create-wrapper">
-                <button
-                  ref={createBtnRef}
-                  type="button"
-                  className="sidebar-item sidebar-create-btn"
-                  title="New chat"
-                  onClick={handleToggleCreatePopup}
-                >
-                  <span className="sidebar-icon"><NewChatIcon /></span>
-                </button>
+          <div className="sidebar-divider" />
+          
+          <div className="sidebar-create-wrapper">
+            <button
+              ref={createBtnRef}
+              type="button"
+              className={`sidebar-item sidebar-create-btn ${showCreatePopup ? "active" : ""}`}
+              title="New chat"
+              onClick={() => { setShowCreatePopup(p => !p); setCreateMode("contacts"); setActiveDrawer("none"); setShowProfilePopup(false); }}
+            >
+              <span className="sidebar-icon"><NewChatIcon /></span>
+            </button>
 
-                {showCreatePopup && (
-                  <div ref={createPopupRef} className="create-popup" role="dialog">
-                    {createMode === "menu" && (
-                      <>
-                        <div className="create-popup-title">Start something new</div>
-                        <div className="create-popup-menu">
-                          <button type="button" className="create-menu-btn" onClick={() => setCreateMode("contact")}>Add New Contact</button>
-                          <button type="button" className="create-menu-btn" onClick={() => setCreateMode("group")}>Create New Group</button>
-                        </div>
-                      </>
-                    )}
-
-                    {createMode === "contact" && (
-                      <>
-                        <div className="create-popup-title">Add New Contact</div>
-                        <div className="create-form">
-                          <label className="profile-input-group">
-                            <span className="profile-input-label">Name</span>
-                            <input type="text" className="profile-input" value={newContactName} onChange={(e) => setNewContactName(e.target.value)} placeholder="Enter contact name" />
-                          </label>
-                          <label className="profile-input-group">
-                            <span className="profile-input-label">Email / Contact</span>
-                            <input type="text" className="profile-input" value={newContactEmail} onChange={(e) => setNewContactEmail(e.target.value)} placeholder="Enter email or phone" />
-                          </label>
-                          <div className="profile-popup-actions">
-                            <button type="button" className="popup-btn popup-btn-secondary" onClick={() => setCreateMode("menu")}>Back</button>
-                            <button type="button" className="popup-btn popup-btn-danger" onClick={handleCreateContact} disabled={!newContactName.trim()}>Create</button>
+            {showCreatePopup && (
+              <div ref={createPopupRef} className="create-popup contacts-popup" role="dialog">
+                {createMode === "contacts" && (
+                  <>
+                    <div className="create-popup-header">
+                      <div className="create-popup-title" style={{margin: 0}}>New Chat</div>
+                      <div className="flyout-search-bar" style={{padding: '10px 0 0', border: 'none'}}>
+                        <input type="text" placeholder="Search contacts..." value={contactSearchTerm} onChange={e => setContactSearchTerm(e.target.value)} autoFocus />
+                      </div>
+                    </div>
+                    <div className="contacts-list-container">
+                      {isAdminUser && !contactSearchTerm && (
+                        <>
+                          <div className="contact-list-item create-group-action" onClick={() => setCreateMode("group")}>
+                            <div className="contact-avatar-placeholder"><GroupsIcon /></div>
+                            <span className="contact-name">New Group</span>
                           </div>
-                        </div>
-                      </>
-                    )}
-
-                    {createMode === "group" && (
-                      <>
-                        <div className="create-popup-title">Create New Group</div>
-                        <div className="create-form">
-                          <label className="profile-input-group">
-                            <span className="profile-input-label">Group Name</span>
-                            <input type="text" className="profile-input" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} placeholder="Enter group name" />
-                          </label>
-                          <label className="profile-input-group">
-                            <span className="profile-input-label">About Group</span>
-                            <input type="text" className="profile-input" value={newGroupAbout} onChange={(e) => setNewGroupAbout(e.target.value)} placeholder="Write something about the group" />
-                          </label>
-                          <div className="profile-popup-actions">
-                            <button type="button" className="popup-btn popup-btn-secondary" onClick={() => setCreateMode("menu")}>Back</button>
-                            <button type="button" className="popup-btn popup-btn-danger" onClick={handleCreateGroup} disabled={!newGroupName.trim()}>Create</button>
+                          
+                          <div className="contact-list-item create-group-action" onClick={() => setCreateMode("create_employee")}>
+                            <div className="contact-avatar-placeholder" style={{background: '#007bfc'}}><AddUserIcon /></div>
+                            <span className="contact-name">Create Employee</span>
                           </div>
-                        </div>
-                      </>
-                    )}
+                        </>
+                      )}
+                      
+                      <div className="contacts-section-title">Contacts on Oppty</div>
+                      {filteredContacts.length > 0 ? (
+                        filteredContacts.map(emp => (
+                          <div key={emp.id} className="contact-list-item" onClick={() => handleStartDirectMessage(emp)}>
+                            <img src={emp.avatarUrl || profileImg} alt={emp.name} className="contact-avatar" />
+                            <div className="contact-info">
+                              <span className="contact-name">{emp.name}</span>
+                              <span className="contact-status">{emp.email}</span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="flyout-empty">No contacts found</div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                {createMode === "group" && (
+                  <div className="create-group-form">
+                    <div className="create-popup-header" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <button className="iconBtn" style={{padding: 0, fontSize: 18}} onClick={() => setCreateMode("contacts")}>←</button>
+                      <div className="create-popup-title" style={{margin: 0}}>Create New Group</div>
+                    </div>
+                    <div className="create-form" style={{marginTop: 16}}>
+                      <label className="profile-input-group">
+                        <span className="profile-input-label">Group Name</span>
+                        <input type="text" className="profile-input" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} placeholder="Enter group name" />
+                      </label>
+                      <label className="profile-input-group">
+                        <span className="profile-input-label">About Group</span>
+                        <input type="text" className="profile-input" value={newGroupAbout} onChange={(e) => setNewGroupAbout(e.target.value)} placeholder="Write something about the group" />
+                      </label>
+                      <div className="profile-popup-actions" style={{marginTop: 20, display: 'flex', justifyContent: 'flex-end', gap: 10}}>
+                        <button type="button" className="popup-btn popup-btn-secondary" onClick={() => setCreateMode("contacts")}>Cancel</button>
+                        <button type="button" className="popup-btn popup-btn-danger" onClick={handleCreateGroup} disabled={!newGroupName.trim()}>Create</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {createMode === "create_employee" && (
+                  <div className="create-group-form">
+                    <div className="create-popup-header" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <button className="iconBtn" style={{padding: 0, fontSize: 18}} onClick={() => setCreateMode("contacts")}>←</button>
+                      <div className="create-popup-title" style={{margin: 0}}>Create Employee</div>
+                    </div>
+                    <div className="create-form" style={{marginTop: 16}}>
+                      <label className="profile-input-group">
+                        <span className="profile-input-label">Full Name</span>
+                        <input type="text" className="profile-input" value={newEmpName} onChange={(e) => setNewEmpName(e.target.value)} placeholder="Enter full name" />
+                      </label>
+                      <label className="profile-input-group">
+                        <span className="profile-input-label">Email Address</span>
+                        <input type="email" className="profile-input" value={newEmpEmail} onChange={(e) => setNewEmpEmail(e.target.value)} placeholder="employee@oppty.com" />
+                      </label>
+                      <label className="profile-input-group">
+                        <span className="profile-input-label">Password</span>
+                        <input type="text" className="profile-input" value={newEmpPassword} onChange={(e) => setNewEmpPassword(e.target.value)} placeholder="Assign a password" />
+                      </label>
+                      <div className="profile-popup-actions" style={{marginTop: 20, display: 'flex', justifyContent: 'flex-end', gap: 10}}>
+                        <button type="button" className="popup-btn popup-btn-secondary" onClick={() => setCreateMode("contacts")}>Cancel</button>
+                        <button type="button" className="popup-btn popup-btn-danger" onClick={handleCreateEmployee} disabled={!newEmpName.trim() || !newEmpEmail.trim() || !newEmpPassword.trim()}>Create</button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
-            </>
-          )}
+            )}
+          </div>
         </div>
 
         <div className="sidebar-bottom">
           <div className="sidebar-profile-wrapper">
-            <button ref={profileBtnRef} type="button" className={`sidebar-profile ${isAdminUser ? "sidebar-admin-badge" : ""}`} title={isAdminUser ? "Admin Profile" : "Profile"} onClick={handleTogglePopup}>
-              {isAdminUser ? <span className="sidebar-admin-text">AD</span> : <img src={profile.photo} alt="User" className="sidebar-profile-img" />}
+            {/* FIX: Render the exact image of the user regardless of Admin status */}
+            <button ref={profileBtnRef} type="button" className="sidebar-profile" title={isAdminUser ? "Admin Profile" : "Profile"} onClick={handleTogglePopup}>
+              <img src={profile.photo} alt="User" className="sidebar-profile-img" />
             </button>
 
             {showProfilePopup && (
@@ -381,7 +392,8 @@ export default function Sidebar({ isChatOpen }) {
                 {!isEditingProfile && !isViewingProfile && !showLogoutConfirm && (
                   <>
                     <div className="profile-popup-header">
-                      {isAdminUser ? <div className="profile-popup-admin-avatar">AD</div> : <img src={profile.photo} alt="User" className="profile-popup-avatar" />}
+                      {/* FIX: Show actual image in header instead of 'AD' block */}
+                      <img src={profile.photo} alt="User" className="profile-popup-avatar" />
                       <div className="profile-popup-user"><h4>{isAdminUser ? `${profile.name} (Admin)` : profile.name}</h4><p>{profile.email}</p></div>
                     </div>
                     <div className="profile-popup-menu">
@@ -407,7 +419,8 @@ export default function Sidebar({ isChatOpen }) {
                 {isViewingProfile && !showLogoutConfirm && (
                   <>
                     <div className="profile-popup-header">
-                      {isAdminUser ? <div className="profile-popup-admin-avatar profile-popup-admin-avatar-large">AD</div> : <img src={profile.photo} alt="User" className="profile-popup-avatar profile-popup-avatar-large" />}
+                      {/* FIX: Show actual image in header instead of 'AD' block */}
+                      <img src={profile.photo} alt="User" className="profile-popup-avatar profile-popup-avatar-large" />
                       <div className="profile-popup-user"><h4>{isAdminUser ? `${profile.name} (Admin)` : profile.name}</h4><p>{profile.email}</p></div>
                     </div>
                     <div className="profile-view-details">
@@ -424,7 +437,7 @@ export default function Sidebar({ isChatOpen }) {
                 {isEditingProfile && !showLogoutConfirm && (
                   <>
                     <div className="profile-popup-header">
-                      {isAdminUser ? <div className="profile-popup-admin-avatar">AD</div> : <img src={draftPhoto} alt="Preview" className="profile-popup-avatar" />}
+                      <img src={draftPhoto} alt="Preview" className="profile-popup-avatar" />
                       <div className="profile-popup-user"><h4>Edit Profile</h4><p>Update your name and photo</p></div>
                     </div>
                     <div className="profile-edit-form">
@@ -432,15 +445,13 @@ export default function Sidebar({ isChatOpen }) {
                         <span className="profile-input-label">Name</span>
                         <input type="text" className="profile-input" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Enter your name" />
                       </label>
-                      {!isAdminUser && (
-                        <div className="profile-input-group">
-                          <span className="profile-input-label">Photo</span>
-                          <div className="profile-edit-actions">
-                            <button type="button" className="popup-btn popup-btn-secondary" onClick={handlePhotoButtonClick}>Choose Photo</button>
-                            <input ref={fileInputRef} type="file" accept="image/*" className="profile-file-input" onChange={handlePhotoChange} />
-                          </div>
+                      <div className="profile-input-group">
+                        <span className="profile-input-label">Photo</span>
+                        <div className="profile-edit-actions">
+                          <button type="button" className="popup-btn popup-btn-secondary" onClick={handlePhotoButtonClick}>Choose Photo</button>
+                          <input ref={fileInputRef} type="file" accept="image/*" className="profile-file-input" onChange={handlePhotoChange} />
                         </div>
-                      )}
+                      </div>
                       <div className="profile-popup-actions">
                         <button type="button" className="popup-btn popup-btn-secondary" onClick={handleCancelEdit}>Cancel</button>
                         <button type="button" className="popup-btn popup-btn-danger" onClick={handleSaveProfile} disabled={!draftName.trim()}>Save</button>

@@ -38,17 +38,15 @@ export default function MessageBubble({
   selectionMode, isSelected, onToggleSelect
 }) {
   const { showToast } = useChats();
-  const isMine = message.sender === "me";
+  const isMine = message.isMine;
   const wrapRef = useRef(null);
   
-  // Menu Positioning State
   const [menuPos, setMenuPos] = useState({ visible: false, x: 0, y: 0 });
   const [showHoverReactions, setShowHoverReactions] = useState(false);
   const [swipeX, setSwipeX] = useState(0);
   const touchStartX = useRef(null);
   const longPressTimer = useRef(null);
 
-  // Close menus when clicking outside
   useEffect(() => {
     const handleOutside = (event) => {
       if (wrapRef.current && !wrapRef.current.contains(event.target)) {
@@ -60,7 +58,6 @@ export default function MessageBubble({
     return () => document.removeEventListener("mousedown", handleOutside);
   }, []);
 
-  // Close fixed menus on scroll to prevent floating
   useEffect(() => {
     const handleScroll = () => {
       if (menuPos.visible || showHoverReactions) {
@@ -68,11 +65,10 @@ export default function MessageBubble({
         setShowHoverReactions(false);
       }
     };
-    window.addEventListener('scroll', handleScroll, true); // true catches all scrolling containers
+    window.addEventListener('scroll', handleScroll, true); 
     return () => window.removeEventListener('scroll', handleScroll, true);
   }, [menuPos.visible, showHoverReactions]);
 
-  // Handle System Messages gracefully
   if (message.type === "system") {
     return (
       <div className="waSystemMessageWrap animatedFadeIn">
@@ -81,28 +77,21 @@ export default function MessageBubble({
     );
   }
 
-  // --- DYNAMIC POSITIONING LOGIC ---
   const openMenuAt = (clientX, clientY) => {
     let x = clientX;
     let y = clientY;
+    // Tighter boundary calculation to prevent clipping
+    const menuWidth = 200; 
+    const menuHeight = 350; 
     
-    // Approximate dimensions of the context menu
-    const menuWidth = 220; 
-    const menuHeight = 360; 
-
-    // Prevent clipping on the right edge
-    if (x + menuWidth > window.innerWidth) {
-      x = window.innerWidth - menuWidth - 16;
-    }
-    // Prevent clipping on the bottom edge
-    if (y + menuHeight > window.innerHeight) {
-      y = window.innerHeight - menuHeight - 16;
-    }
+    if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 10;
+    if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 10;
+    if (x < 10) x = 10;
+    if (y < 10) y = 10;
 
     setMenuPos({ visible: true, x, y });
   };
 
-  // Interaction Handlers
   const handleTouchStart = (e) => {
     if (selectionMode) return;
     const touchX = e.touches[0].clientX;
@@ -117,9 +106,9 @@ export default function MessageBubble({
 
   const handleTouchMove = (e) => {
     if (selectionMode || touchStartX.current === null) return;
-    clearTimeout(longPressTimer.current); // Cancel long press if swiping
+    clearTimeout(longPressTimer.current);
     const deltaX = e.touches[0].clientX - touchStartX.current;
-    if (deltaX > 0 && deltaX < 80) setSwipeX(deltaX); // Swipe right to reply
+    if (deltaX > 0 && deltaX < 80) setSwipeX(deltaX);
   };
 
   const handleTouchEnd = () => {
@@ -188,7 +177,7 @@ export default function MessageBubble({
           <div className="waPollMultipleText">{message.allowMultiple ? "Select one or more" : "Select one"}</div>
           <div className="waPollOptionsList">
             {message.pollOptions.map((opt) => {
-              const hasVoted = opt.votedBy.includes("me");
+              const hasVoted = opt.votedBy.includes("me") || (message.isMine && opt.votedBy.length > 0); 
               const percent = totalVoters > 0 ? (opt.votedBy.length / totalVoters) * 100 : 0;
               
               return (
@@ -244,14 +233,8 @@ export default function MessageBubble({
   const renderContextMenu = () => {
     if (!menuPos.visible || selectionMode) return null;
     
-    // Fixed positioning breaks out of overflow containers natively
-    const style = { 
-      position: 'fixed', 
-      top: menuPos.y, 
-      left: menuPos.x, 
-      margin: 0, 
-      zIndex: 9999999 
-    };
+    // Using Fixed Positioning + High Z-Index guarantees it escapes hidden overflows
+    const style = { position: 'fixed', top: menuPos.y, left: menuPos.x, margin: 0, zIndex: 9999999, minWidth: '180px', width: 'max-content' };
 
     return (
       <div className={`waBubbleMenu ${isMine ? "mine" : "theirs"}`} style={style} onClick={e => e.stopPropagation()}>
@@ -279,7 +262,8 @@ export default function MessageBubble({
   };
 
   return (
-    <div className={`waRow animatedFadeIn ${isMine ? "mine" : "theirs"} ${selectionMode && isSelected ? "selected" : ""}`}>
+    // FIX: Removed "animatedFadeIn" from waRow because CSS 'transform' traps 'position: fixed' children!
+    <div className={`waRow ${isMine ? "mine" : "theirs"} ${selectionMode && isSelected ? "selected" : ""}`}>
       {selectionMode && (
         <div className="waSelectionArea" onClick={onToggleSelect}>
           <div className={`waCheckbox ${isSelected ? "checked" : ""}`}>{isSelected && "✓"}</div>
@@ -289,7 +273,6 @@ export default function MessageBubble({
       <div className="waBubbleContainer" ref={wrapRef} onClick={handleBubbleClick}>
         <div className="swipeReplyIcon" style={{ opacity: swipeX / 50, transform: `translateX(${swipeX - 40}px) scale(${Math.min(swipeX / 50, 1)})`}}>↩</div>
 
-        {/* Hover Actions (Desktop) */}
         {!selectionMode && !message.deletedForAll && (
           <div className="waHoverActions">
             <button onClick={(e) => { e.stopPropagation(); setShowHoverReactions(!showHoverReactions); }} title="React">😀</button>
@@ -314,12 +297,10 @@ export default function MessageBubble({
           onTouchEnd={handleTouchEnd}
           onContextMenu={handleContextMenu}
         >
-          {/* Mobile menu trigger */}
           {!selectionMode && (
             <button type="button" className="waBubbleMenuBtn mobile-only" aria-label="Message options" onClick={handleChevronClick}>▾</button>
           )}
 
-          {/* Group sender name */}
           {!isMine && message.senderName && !message.deletedForAll && (
              <div className="waSenderName">{message.senderName}</div>
           )}
@@ -335,7 +316,6 @@ export default function MessageBubble({
             {isMine && !message.deletedForAll && <span className={`waStatus ${message.status || "sent"}`}>{message.status === 'sent' ? '✓' : '✓✓'}</span>}
           </div>
 
-          {/* Reactions display */}
           {message.reactions && message.reactions.length > 0 && (
             <div className="waReactionsDisplay">
               {message.reactions.map((emoji, i) => <span key={i} className="waReactionBadge">{emoji}</span>)}

@@ -4,8 +4,16 @@ import { useChats } from "../../context/ChatContext.jsx";
 import { useMediaQuery } from "../../hooks/useMediaQuery.js";
 import { employeeDB } from "../../data/employees";
 import MessageBubble from "./MessageBubble.jsx";
+import { getAuthUser } from "../../utils/auth.js";
 
-// Standard Helper Functions
+try {
+  const savedEmps = JSON.parse(localStorage.getItem("opty_employees"));
+  if (savedEmps && Array.isArray(savedEmps) && savedEmps.length >= employeeDB.length) {
+    employeeDB.length = 0; 
+    employeeDB.push(...savedEmps); 
+  }
+} catch(e) {}
+
 function formatDay(ts) {
   const date = new Date(ts);
   const today = new Date();
@@ -40,6 +48,15 @@ export default function ChatPage() {
   } = useChats();
 
   const chat = chatId ? getChatById(chatId) : null;
+  const authUser = getAuthUser();
+
+  const isGroupAdmin = useMemo(() => {
+    if (chat?.kind !== "group") return false;
+    const me = chat.members?.find(m => m.email === authUser?.email);
+    return me?.isAdmin === true;
+  }, [chat, authUser]);
+
+  const canEditGroupInfo = chat?.kind === "group" ? (isAdmin || isGroupAdmin) : true;
 
   const [drafts, setDrafts] = useState({});
   const text = drafts[chatId] || "";
@@ -108,7 +125,6 @@ export default function ChatPage() {
   const stickerOptions = ["😀", "😂", "😍", "🔥", "🎉", "❤️", "👍", "🙏", "😎", "🥳"];
 
   const canSend = text.trim().length > 0;
-  const canEditGroupInfo = isAdmin || chat?.isAdmin === true;
   const memberCount = chat?.kind === "group" ? chat.members?.length || 0 : 0;
 
   const toggleSelection = (msgId) => { setSelectedMessages(prev => prev.includes(msgId) ? prev.filter(id => id !== msgId) : [...prev, msgId]); };
@@ -116,7 +132,7 @@ export default function ChatPage() {
   useEffect(() => { if (selectedMessages.length === 0 && selectionMode) setSelectionMode(false); }, [selectedMessages, selectionMode]);
 
   const pinnedMessages = chat?.messages?.filter(m => m.isPinned && !m.deletedForAll) || [];
-  const firstUnreadId = useMemo(() => { if (!chat) return null; const unreadMsg = chat.messages.find((m) => m.unread && m.sender !== "me"); return unreadMsg ? unreadMsg.id : null; }, [chat]);
+  const firstUnreadId = useMemo(() => { if (!chat) return null; const unreadMsg = chat.messages.find((m) => m.unread && !m.isMine); return unreadMsg ? unreadMsg.id : null; }, [chat]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -158,7 +174,7 @@ export default function ChatPage() {
       }
       let matchSender = true;
       if (filterSender) {
-         if (filterSender === "me") matchSender = m.sender === "me";
+         if (filterSender === "me") matchSender = m.isMine;
          else matchSender = m.senderName === chat.members.find(x => String(x.id) === String(filterSender))?.name;
       }
       let matchDate = true;
@@ -339,8 +355,8 @@ export default function ChatPage() {
   const handleCancelEditAbout = () => { setIsEditingAbout(false); setDraftAbout(chat.about || ""); };
   const handleSaveEditAbout = () => { const trimmed = draftAbout.trim(); if (!trimmed || !canEditGroupInfo) return; updateGroupAbout(chat.id, trimmed); setIsEditingAbout(false); showToast("Group description updated"); };
 
-  const handleDeleteChat = () => { if (isAdmin) { deleteChat(chat.id); setShowOptionsMenu(false); setShowChatInfo(false); navigate(chat.kind === "group" ? "/groups" : "/chats"); showToast("Chat deleted", "error"); }};
-  const handleToggleBlock = () => { if (isAdmin) { toggleBlockChat(chat.id); setShowOptionsMenu(false); showToast(chat.blocked ? "Chat unblocked" : "Chat blocked"); }};
+  const handleDeleteChat = () => { deleteChat(chat.id); setShowOptionsMenu(false); setShowChatInfo(false); navigate(chat.kind === "group" ? "/groups" : "/chats"); showToast(chat.kind === "group" ? "Group deleted" : "Contact deleted"); };
+  const handleToggleBlock = () => { toggleBlockChat(chat.id); setShowOptionsMenu(false); showToast(chat.blocked ? "Chat unblocked" : "Chat blocked"); };
   const handleLeaveGroup = () => { leaveGroup(chat.id); setShowOptionsMenu(false); setShowChatInfo(false); showToast("You left the group"); };
 
   const handleAddMember = () => {
@@ -401,7 +417,7 @@ export default function ChatPage() {
               <div className="chatHeaderText">
                 <div className="chatHeaderName">{chat.name}</div>
                 <div className="chatHeaderMeta">
-                  {isTyping ? (<span className="typingIndicator">{chat.kind === 'group' ? "Someone is typing..." : "typing..."}</span>) : chat.kind === "group" ? (`${memberCount} member${memberCount !== 1 ? "s" : ""}`) : chat.blocked ? ("blocked by admin") : chat.isOnline ? ("online") : chat.lastSeen ? (chat.lastSeen) : ("offline")}
+                  {isTyping ? (<span className="typingIndicator">{chat.kind === 'group' ? "Someone is typing..." : "typing..."}</span>) : chat.kind === "group" ? (`${memberCount} member${memberCount !== 1 ? "s" : ""}`) : chat.blocked ? ("blocked") : chat.isOnline ? ("online") : chat.lastSeen ? (chat.lastSeen) : ("offline")}
                 </div>
               </div>
             </button>
@@ -415,10 +431,17 @@ export default function ChatPage() {
                   <button type="button" className="chatOptionsItem" onClick={() => {setSelectionMode(true); setShowOptionsMenu(false);}}>Select messages</button>
                   <button type="button" className="chatOptionsItem" onClick={handleCloseSearch}>Clear search</button>
                   <button type="button" className="chatOptionsItem" onClick={handleScrollToLatest}>Scroll to latest</button>
-                  {isAdmin && (
+                  
+                  {chat.kind === "dm" && (
+                    <button type="button" className="chatOptionsItem chatOptionsItemDanger" onClick={handleDeleteChat}>Delete Contact</button>
+                  )}
+                  {chat.kind === "group" && (
                     <>
-                      <button type="button" className="chatOptionsItem" onClick={handleToggleBlock}>{chat.blocked ? "Unblock" : "Block"} {chat.kind === "group" ? "group" : "contact"}</button>
-                      <button type="button" className="chatOptionsItem chatOptionsItemDanger" onClick={handleDeleteChat}>Delete {chat.kind === "group" ? "group" : "chat"}</button>
+                      {!chat.hasLeft ? (
+                         <button type="button" className="chatOptionsItem chatOptionsItemDanger" onClick={handleLeaveGroup}>Exit Group</button>
+                      ) : (
+                         <button type="button" className="chatOptionsItem chatOptionsItemDanger" onClick={handleDeleteChat}>Delete Group</button>
+                      )}
                     </>
                   )}
                   <button type="button" className="chatOptionsItem" onClick={() => setShowOptionsMenu(false)}>Close</button>
@@ -470,7 +493,7 @@ export default function ChatPage() {
             <div className="whatsappGroupTopCard">
               <img className="whatsappGroupAvatar" src={chat.avatarUrl} alt={chat.name} />
               {!isEditingName ? (
-                <><div className="whatsappGroupNameRow"><div className="whatsappGroupName">{chat.name}</div>{canEditGroupInfo && (<button type="button" className="groupInlineEditBtn" onClick={handleStartEditName}>✎</button>)}</div>{chat.kind === "group" ? (<div className="whatsappGroupMeta">Group · {memberCount} member{memberCount !== 1 ? "s" : ""}</div>) : (<div className="whatsappGroupMeta">{chat.blocked ? "Blocked by admin" : chat.isOnline ? "online" : chat.lastSeen ? chat.lastSeen : "offline"}</div>)}</>
+                <><div className="whatsappGroupNameRow"><div className="whatsappGroupName">{chat.name}</div>{canEditGroupInfo && (<button type="button" className="groupInlineEditBtn" onClick={handleStartEditName}>✎</button>)}</div>{chat.kind === "group" ? (<div className="whatsappGroupMeta">Group · {memberCount} member{memberCount !== 1 ? "s" : ""}</div>) : (<div className="whatsappGroupMeta">{chat.blocked ? "Blocked" : chat.isOnline ? "online" : chat.lastSeen ? chat.lastSeen : "offline"}</div>)}</>
               ) : (
                 <div className="chatEditNameBox"><input ref={editNameInputRef} type="text" className="chatEditNameInput" value={editedName} onChange={(e) => setEditedName(e.target.value)} placeholder={chat.kind === "group" ? "Enter group name" : "Enter name"} onKeyDown={(e) => { if (e.key === "Enter") handleSaveEditName(); }} /><div className="chatEditNameActions"><button type="button" className="popup-btn popup-btn-secondary" onClick={handleCancelEditName}>Cancel</button><button type="button" className="popup-btn popup-btn-danger" onClick={handleSaveEditName} disabled={!editedName.trim()}>Save</button></div></div>
               )}
@@ -496,7 +519,6 @@ export default function ChatPage() {
                   <div className="chatInfoCardRow"><span className="chatInfoLabel">Phone / Email</span><strong className="chatInfoValue">{chat.contact || chat.email || "Not available"}</strong></div>
                   <div className="groupInfoSectionCard mediaLinksDocsCard" onClick={() => setShowMediaPanel(true)} role="button" tabIndex={0}><div className="groupInfoSectionTop"><div className="groupInfoSectionTitle">Media, links and docs</div><div className="groupInfoSectionCount">{totalSharedCount}</div></div><div className="groupMediaPreviewRow">{mediaItems.slice(0, 2).map((item) => (<button key={item.id} type="button" className="groupMediaPreviewItem" onClick={(e) => { e.stopPropagation(); if (item.fileUrl && item.fileUrl !== "#") setPreviewMedia(item.fileUrl); }}><img src={item.fileUrl} alt={item.fileName} /></button>))}</div></div>
                   
-                  {/* DISAPPEARING MESSAGES CARD */}
                   <div className="groupInfoSectionCard">
                     <div className="groupInfoSectionTop" style={{marginBottom: 8}}><div className="groupInfoSectionTitle">Disappearing messages</div></div>
                     <div className="disappearingSettings">
@@ -507,7 +529,10 @@ export default function ChatPage() {
                     </div>
                   </div>
 
-                  {isAdmin && (<div className="chatInfoAdminActions"><button type="button" className="popup-btn popup-btn-secondary" onClick={handleToggleBlock}>{chat.blocked ? "Unblock" : "Block"} Contact</button><button type="button" className="popup-btn popup-btn-danger" onClick={handleDeleteChat}>Delete Chat</button></div>)}
+                  <div className="chatInfoAdminActions">
+                    <button type="button" className="popup-btn popup-btn-secondary" onClick={handleToggleBlock}>{chat.blocked ? "Unblock" : "Block"} Contact</button>
+                    <button type="button" className="popup-btn popup-btn-danger" onClick={handleDeleteChat}>Delete Contact</button>
+                  </div>
                 </div>
               )}
             </div>
@@ -516,7 +541,6 @@ export default function ChatPage() {
               <>
                 <div className="groupInfoSectionCard mediaLinksDocsCard" onClick={() => setShowMediaPanel(true)} role="button" tabIndex={0}><div className="groupInfoSectionTop"><div className="groupInfoSectionTitle">Media, links and docs</div><div className="groupInfoSectionCount">{totalSharedCount}</div></div><div className="groupMediaPreviewRow">{mediaItems.slice(0, 2).length ? (mediaItems.slice(0, 2).map((item) => (<button key={item.id} type="button" className="groupMediaPreviewItem" onClick={(e) => { e.stopPropagation(); if (item.fileUrl && item.fileUrl !== "#") setPreviewMedia(item.fileUrl); }}><img src={item.fileUrl} alt={item.fileName} /></button>))) : ( <div className="muted">No media, docs or links shared yet.</div> )}</div></div>
                 
-                {/* DISAPPEARING MESSAGES CARD (GROUPS) */}
                 <div className="groupInfoSectionCard">
                   <div className="groupInfoSectionTop" style={{marginBottom: 8}}><div className="groupInfoSectionTitle">Disappearing messages</div></div>
                   <div className="disappearingSettings">
@@ -547,10 +571,12 @@ export default function ChatPage() {
                             <img src={member.avatarUrl || "https://i.pravatar.cc/100"} alt={member.name} className="groupMemberAvatar" />
                             <div className="groupMemberInfo"><div style={{display: 'flex', alignItems: 'center'}}><strong>{member.name}</strong>{member.isAdmin && <span className="groupAdminBadge">Admin</span>}</div><span>{member.email}</span></div>
                           </div>
-                          <div className="groupMemberRightMeta" style={{ gap: 8 }}>
-                            {canEditGroupInfo && !member.isAdmin && <button type="button" className="groupMemberActionBtn" onClick={() => handlePromoteAdmin(member.id)}>Make Admin</button>}
-                            {canEditGroupInfo && member.isAdmin && <button type="button" className="groupMemberActionBtn" onClick={() => handleDemoteAdmin(member.id)}>Dismiss Admin</button>}
-                            {canEditGroupInfo && <button type="button" className="groupMemberRemoveBtn" onClick={() => handleRemoveMember(member.id)}>Remove</button>}
+                          
+                          {/* FIX: Ensure flex properties let buttons wrap correctly without squeezing */}
+                          <div className="groupMemberRightMeta" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'flex-end', marginLeft: '12px' }}>
+                            {canEditGroupInfo && member.email !== authUser?.email && !member.isAdmin && <button type="button" className="groupMemberActionBtn" onClick={() => handlePromoteAdmin(member.id)}>Make Admin</button>}
+                            {canEditGroupInfo && member.email !== authUser?.email && member.isAdmin && <button type="button" className="groupMemberActionBtn" onClick={() => handleDemoteAdmin(member.id)}>Dismiss Admin</button>}
+                            {canEditGroupInfo && member.email !== authUser?.email && <button type="button" className="groupMemberRemoveBtn" onClick={() => handleRemoveMember(member.id)}>Remove</button>}
                           </div>
                         </div>
                       ))
@@ -558,8 +584,11 @@ export default function ChatPage() {
                   </div>
 
                   <div className="groupBottomActions">
-                     {!chat.hasLeft && (<button type="button" className="groupBottomActionBtn danger" onClick={handleLeaveGroup}>Leave group</button>)}
-                     {isAdmin && (<><button type="button" className="groupBottomActionBtn danger" onClick={handleDeleteChat}>Delete group</button><button type="button" className="groupBottomActionBtn danger" onClick={handleToggleBlock}>{chat.blocked ? "Unblock group" : "Block group"}</button></>)}
+                     {!chat.hasLeft ? (
+                       <button type="button" className="groupBottomActionBtn danger" onClick={handleLeaveGroup}>Exit group</button>
+                     ) : (
+                       <button type="button" className="groupBottomActionBtn danger" onClick={handleDeleteChat}>Delete group</button>
+                     )}
                   </div>
                 </div>
               </>
@@ -605,7 +634,7 @@ export default function ChatPage() {
                         onForward={() => setForwardingMessage(m)}
                         onDeleteForMe={() => setDeletePrompt({ id: m.id, type: 'me' })}
                         onDeleteForAll={() => setDeletePrompt({ id: m.id, type: 'all' })}
-                        canDeleteForAll={m.sender === "me" || isAdmin}
+                        canDeleteForAll={m.isMine || isAdmin}
                         onScrollToReply={handleScrollToMessage}
                         onPreviewImage={(url) => setPreviewMedia(url)}
                       />
@@ -619,7 +648,6 @@ export default function ChatPage() {
         <div ref={endRef} />
       </section>
 
-      {/* POLL MODAL OVERLAY */}
       {showPollModal && (
         <div className="mediaPreviewOverlay animatedFadeIn" onClick={() => setShowPollModal(false)}>
           <div className="customModal pollModal" onClick={(e) => e.stopPropagation()}>
@@ -665,6 +693,7 @@ export default function ChatPage() {
               <button type="button" className="waComposerReplyClose" onClick={() => setReplyingTo(null)}>✕</button>
             </div>
           )}
+
           {editingMessage && (
             <div className="waComposerReplyBar animatedFadeIn">
               <div className="waComposerReplyAccent" />
@@ -695,7 +724,7 @@ export default function ChatPage() {
                   <button type="button" className="waAttachMenuItem" onClick={() => handleAttachmentAction("image")}>
                     <div className="waAttachIcon waAttachIcon-image"><svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg></div><span>Photos & Videos</span>
                   </button>
-                  {chat.kind === "group" && (
+                  {chat.kind === "group" && canEditGroupInfo && (
                     <button type="button" className="waAttachMenuItem" onClick={() => { setShowPollModal(true); setShowAttachMenu(false); }}>
                       <div className="waAttachIcon waAttachIcon-poll"><svg viewBox="0 0 24 24" width="20" height="20" fill="white"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4z"/></svg></div><span>Poll</span>
                     </button>
@@ -719,7 +748,7 @@ export default function ChatPage() {
             <input ref={documentInputRef} type="file" className="hiddenFileInput" onChange={handleDocumentSelected} />
           </div>
 
-          <textarea ref={composerInputRef} className="composerInput" value={text} onChange={handleTextInput} placeholder={chat.blocked ? "This chat is blocked by admin" : editingMessage ? "Edit message" : "Type a message"} rows={1} disabled={chat.blocked} onKeyDown={handleKeyDown} />
+          <textarea ref={composerInputRef} className="composerInput" value={text} onChange={handleTextInput} placeholder={chat.blocked ? "This chat is blocked" : editingMessage ? "Edit message" : "Type a message"} rows={1} disabled={chat.blocked} onKeyDown={handleKeyDown} />
           <button type="button" className="sendBtn" onClick={onSend} aria-label="Send" title="Send" disabled={!canSend || chat.blocked}>
             <svg className="sendIcon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
           </button>

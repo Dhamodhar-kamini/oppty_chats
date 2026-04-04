@@ -3333,3 +3333,190 @@
   from { opacity: 0; transform: scale(0.8); }
   to { opacity: 1; transform: scale(1); }
 }
+
+
+/* ---- CONTACTS LIST POPUP STYLES ---- */
+.contacts-popup {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+}
+
+.create-popup-header {
+  padding: 16px 20px 10px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.contacts-list-container {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.contacts-section-title {
+  padding: 16px 20px 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #00a884;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.contact-list-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.contact-list-item:hover {
+  background: #f0f2f5;
+}
+
+.contact-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.contact-avatar-placeholder {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #00a884;
+  color: white;
+  display: grid;
+  place-items: center;
+}
+
+.contact-avatar-placeholder svg {
+  width: 24px;
+  height: 24px;
+}
+
+.contact-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.contact-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.contact-status {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.create-group-form {
+  padding: 0;
+}
+
+
+/* ---- DESKTOP HOVER ACTIONS & CONTEXT MENU ---- */
+.waHoverActions {
+  position: absolute;
+  top: 0;
+  right: -80px;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  background: rgba(255,255,255,0.9);
+  padding: 4px 8px;
+  border-radius: 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  backdrop-filter: blur(4px);
+  z-index: 10;
+}
+
+.waBubbleContainer:hover .waHoverActions {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.waRow.mine .waHoverActions {
+  right: auto;
+  left: -80px;
+}
+
+.waHoverActions button {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  color: #54656f;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.waHoverActions button:hover {
+  background: #f0f2f5;
+  transform: scale(1.1);
+}
+
+/* FIX: Ensure reactions menu never clips the right side of the screen */
+.waHoverReactionsMenu {
+  position: absolute;
+  top: -45px;
+  background: white;
+  padding: 6px;
+  border-radius: 20px;
+  display: flex;
+  gap: 4px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+  animation: slideUp 0.2s ease;
+  z-index: 100;
+}
+
+.waBubble.mine .waHoverReactionsMenu {
+  right: 0;
+  left: auto;
+}
+
+.waBubble.theirs .waHoverReactionsMenu {
+  left: 0;
+  right: auto;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+
+/* ---- MOBILE POPUP FIXES ---- */
+@media (max-width: 768px) {
+  .create-popup, 
+  .profile-popup {
+    position: fixed;
+    top: auto;
+    bottom: 80px; /* Sits safely above the bottom navigation bar */
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%);
+    width: 92vw !important;
+    max-width: 400px;
+    z-index: 10000;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.25);
+  }
+
+  /* Make the triangle pointers disappear on mobile since it's now a center modal */
+  .create-popup::before, 
+  .profile-popup::before {
+    display: none !important;
+  }
+}
