@@ -3951,3 +3951,130 @@ body.dark-mode .mentionItem.selected {
 body.dark-mode .sidebar-item.active::after {
   background-color: #ef7e33 !important; /* Matches your orange brand color */
 }
+
+
+/* =========================================================
+   🌙 DARK THEME: LOGO FIX & SHINE EFFECT
+   ========================================================= */
+
+/* 1. Brighten the logo so it's visible against the dark background */
+body.dark-mode .company-login-logo,
+body.dark-mode .chatListHeader img,
+body.dark-mode .sidebar-logo,
+body.dark-mode div[class*="Header"] img {
+  filter: brightness(1.2) drop-shadow(0 0 5px rgba(255, 255, 255, 0.1)) !important;
+}
+
+/* 2. Create the "Shining" animation */
+@keyframes logoShine {
+  0% {
+    mask-position: -150%;
+  }
+  100% {
+    mask-position: 150%;
+  }
+}
+
+/* 3. Apply the Shining effect specifically to the Logo in Dark Mode */
+body.dark-mode .chatListHeader img,
+body.dark-mode .company-login-logo {
+  position: relative;
+  /* This creates a light-sweep effect that moves across the logo */
+  mask-image: linear-gradient(
+    -75deg,
+    rgba(0, 0, 0, 0.6) 30%,
+    #000 50%,
+    rgba(0, 0, 0, 0.6) 70%
+  );
+  mask-size: 200%;
+  animation: logoShine 3s infinite linear;
+}
+
+/* 4. Fix for the text "Groups" or "Chats" next to logo in screenshot */
+body.dark-mode .chatListHeaderTitle,
+body.dark-mode .employee-login-header h1 {
+  background: linear-gradient(to right, #e9edef 20%, #ef7e33 40%, #ef7e33 60%, #e9edef 80%);
+  background-size: 200% auto;
+  color: #000;
+  background-clip: text;
+  text-fill-color: transparent;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: logoShine 4s linear infinite;
+  display: inline-block;
+}
+
+/* =========================================================
+   ✨ FINAL LOGO & TITLE SHINE (ULTIMATE FIX)
+   ========================================================= */
+
+/* 1. Make the Logo Image Visible and Pop */
+body.dark-mode .opptyLogo {
+  filter: brightness(0) invert(1) brightness(1.2) drop-shadow(0 0 5px rgba(239, 126, 51, 0.4)) !important;
+  position: relative;
+  display: inline-block;
+}
+
+/* 2. Shine Animation for Text */
+@keyframes ultimateShine {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* 3. Fix Section Title (Groups/Chats) text visibility and shine */
+body.dark-mode .sectionTitle {
+  display: inline-flex;
+  font-weight: bold;
+  vertical-align: middle;
+  padding-left: 5px;
+}
+
+body.dark-mode .titleOrange,
+body.dark-mode .titleBlack {
+  /* This creates a metallic shimmer that moves */
+  background: linear-gradient(
+    90deg, 
+    currentColor 0%, 
+    currentColor 40%, 
+    #ffffff 50%, 
+    currentColor 60%, 
+    currentColor 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: ultimateShine 5s infinite linear;
+}
+
+/* Base colors for the shimmer to use */
+body.dark-mode .titleOrange {
+  color: #ef7e33 !important; /* Your brand orange */
+}
+
+body.dark-mode .titleBlack {
+  color: #e9edef !important; /* Force white text for "ups" / "ts" */
+}
+
+/* 4. Adding a Shimmer Overlay to the Logo Image specifically */
+body.dark-mode .brandRow {
+  position: relative;
+  overflow: hidden;
+}
+
+body.dark-mode .brandRow::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    to right,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.3) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: skewX(-25deg);
+  animation: ultimateShine 4s infinite;
+}
