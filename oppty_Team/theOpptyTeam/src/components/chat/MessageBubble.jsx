@@ -33,7 +33,7 @@ function renderTextWithMentions(text) {
 }
 
 export default function MessageBubble({
-  message, onReply, onEdit, onForward, onDeleteForMe, onDeleteForAll, canDeleteForAll,
+  message, onReply, onOpenThread, onEdit, onForward, onDeleteForMe, onDeleteForAll, canDeleteForAll,
   onScrollToReply, onPreviewImage, onReaction, onStar, onPin, onVote,
   selectionMode, isSelected, onToggleSelect
 }) {
@@ -80,7 +80,6 @@ export default function MessageBubble({
   const openMenuAt = (clientX, clientY) => {
     let x = clientX;
     let y = clientY;
-    // Tighter boundary calculation to prevent clipping
     const menuWidth = 200; 
     const menuHeight = 350; 
     
@@ -233,7 +232,6 @@ export default function MessageBubble({
   const renderContextMenu = () => {
     if (!menuPos.visible || selectionMode) return null;
     
-    // Using Fixed Positioning + High Z-Index guarantees it escapes hidden overflows
     const style = { position: 'fixed', top: menuPos.y, left: menuPos.x, margin: 0, zIndex: 9999999, minWidth: '180px', width: 'max-content' };
 
     return (
@@ -247,7 +245,11 @@ export default function MessageBubble({
         )}
         
         <button type="button" className="waBubbleMenuItem" onClick={() => { onToggleSelect(); setMenuPos({ visible: false, x:0, y:0 }); }}>Select messages</button>
-        {!message.deletedForAll && <button type="button" className="waBubbleMenuItem" onClick={() => { onReply?.(); setMenuPos({ visible: false, x:0, y:0 }); }}>Reply</button>}
+        {!message.deletedForAll && <button type="button" className="waBubbleMenuItem" onClick={() => { onReply?.(); setMenuPos({ visible: false, x:0, y:0 }); }}>Reply directly</button>}
+        
+        {/* NEW: THREAD REPLY */}
+        {!message.deletedForAll && <button type="button" className="waBubbleMenuItem" onClick={() => { onOpenThread?.(message); setMenuPos({ visible: false, x:0, y:0 }); }}>Reply in thread</button>}
+        
         {!message.deletedForAll && isMine && message.type === 'text' && <button type="button" className="waBubbleMenuItem" onClick={() => { onEdit?.(); setMenuPos({ visible: false, x:0, y:0 }); }}>Edit</button>}
         {!message.deletedForAll && message.text && <button type="button" className="waBubbleMenuItem" onClick={handleCopy}>Copy</button>}
         {!message.deletedForAll && <button type="button" className="waBubbleMenuItem" onClick={() => { onForward?.([message]); setMenuPos({ visible: false, x:0, y:0 }); }}>Forward</button>}
@@ -262,7 +264,6 @@ export default function MessageBubble({
   };
 
   return (
-    // FIX: Removed "animatedFadeIn" from waRow because CSS 'transform' traps 'position: fixed' children!
     <div className={`waRow ${isMine ? "mine" : "theirs"} ${selectionMode && isSelected ? "selected" : ""}`}>
       {selectionMode && (
         <div className="waSelectionArea" onClick={onToggleSelect}>
@@ -276,7 +277,7 @@ export default function MessageBubble({
         {!selectionMode && !message.deletedForAll && (
           <div className="waHoverActions">
             <button onClick={(e) => { e.stopPropagation(); setShowHoverReactions(!showHoverReactions); }} title="React">😀</button>
-            <button onClick={(e) => { e.stopPropagation(); onReply?.(); }} title="Reply">↩</button>
+            <button onClick={(e) => { e.stopPropagation(); onOpenThread?.(message); }} title="Reply in thread">💬</button>
             <button onClick={handleChevronClick} title="Menu">▾</button>
             
             {showHoverReactions && (
@@ -308,6 +309,13 @@ export default function MessageBubble({
           <ReplySnippet replyTo={message.replyTo} onClick={() => { if(!selectionMode) onScrollToReply?.(message.replyTo.id); }} />
           
           {displayContent()}
+
+          {/* NEW: VISUAL THREAD REPLIES BADGE */}
+          {message.thread && message.thread.length > 0 && !message.deletedForAll && (
+             <div className="waThreadBadge" onClick={(e) => { e.stopPropagation(); onOpenThread?.(message); }}>
+               💬 {message.thread.length} reply{message.thread.length > 1 ? 's' : ''}
+             </div>
+          )}
 
           <div className="waBubbleFooter">
             {message.isStarred && <span className="waStarIcon">⭐</span>}

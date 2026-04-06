@@ -3562,3 +3562,392 @@
   font-weight: 600;
   font-size: 16px;
 }
+
+
+/* ---- IT WORKSPACE FEATURES (DND, Threads, Bookmarks) ---- */
+.dndWarningBar {
+  background-color: #ffeaea;
+  color: #d32f2f;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  border-top: 1px solid #ffcdd2;
+}
+
+.waThreadBadge {
+  display: inline-flex;
+  align-items: center;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 12px;
+  margin-top: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.waThreadBadge:hover {
+  background: #f0f2f5;
+}
+
+.bookmarkList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.bookmarkCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f0f2f5;
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+.bookmarkLink {
+  color: #007bfc;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+}
+.bookmarkLink:hover {
+  text-decoration: underline;
+}
+
+/* Thread Side-Drawer Layout */
+.threadDrawer {
+  width: 400px;
+  max-width: 90vw;
+  display: flex;
+  flex-direction: column;
+}
+.threadDrawerBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  background-color: #efeae2; /* Matches the chat background */
+}
+.threadOriginalMsg {
+  background: white;
+  padding: 12px;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  margin-bottom: 24px;
+  border-bottom-left-radius: 0;
+}
+.threadMsgText {
+  color: #111b21;
+  font-size: 14px;
+  line-height: 1.4;
+  margin: 4px 0 6px;
+}
+.threadRepliesList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.threadReplyItem {
+  background: white;
+  padding: 10px 12px;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  width: fit-content;
+  max-width: 90%;
+  border-top-left-radius: 0;
+}
+.threadComposer {
+  border-top: 1px solid var(--border);
+  background: var(--panel-2);
+  z-index: 10;
+}
+
+
+/* =========================================================
+   🌙 NATIVE DARK MODE: BASE VARIABLES & LAYOUT
+   ========================================================= */
+body.dark-mode {
+  --bg: #111b21;
+  --panel: #202c33;
+  --panel-2: #222e35;
+  --text: #e9edef;
+  --muted: #8696a0;
+  --border: #2a3942;
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+body.dark-mode h1, 
+body.dark-mode h2, 
+body.dark-mode h3, 
+body.dark-mode h4 { 
+  color: #e9edef !important; 
+}
+
+/* =========================================================
+   🌙 SIDEBAR & ICONS
+   ========================================================= */
+body.dark-mode .sidebar { background: var(--panel); border-right: 1px solid var(--border); }
+body.dark-mode .sidebar-item, body.dark-mode .sidebar-icon { color: #aebac1 !important; }
+body.dark-mode .sidebar-item.active { background-color: #2a3942 !important; }
+body.dark-mode .sidebar-item.active .sidebar-icon { color: #ef7e33 !important; }
+
+body.dark-mode .sidebar-create-btn {
+  background-color: var(--panel-2) !important;
+  color: #e9edef !important;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3) !important;
+  border: 1px solid var(--border) !important;
+}
+body.dark-mode .sidebar-create-btn:hover { background-color: #2a3942 !important; }
+body.dark-mode .sidebar-create-btn svg { fill: currentColor !important; color: currentColor !important; }
+
+/* =========================================================
+   🌙 CHAT LIST & SEARCH BAR
+   ========================================================= */
+body.dark-mode .chatListHeader, 
+body.dark-mode .chatListSearchContainer, 
+body.dark-mode .search-bar-container {
+  background-color: var(--bg) !important;
+  border-bottom-color: var(--border) !important;
+}
+
+body.dark-mode input[type="text"], 
+body.dark-mode input[type="email"], 
+body.dark-mode input[placeholder*="Search"], 
+body.dark-mode input[placeholder*="search"], 
+body.dark-mode .chatListSearchInput, 
+body.dark-mode .flyout-search-bar input {
+  background-color: var(--panel-2) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+}
+
+body.dark-mode input::placeholder, 
+body.dark-mode textarea::placeholder {
+  color: var(--muted) !important;
+}
+
+/* Active Chat Item */
+body.dark-mode .active:not(.sidebar-item):not(.chat-filter-pill),
+body.dark-mode a.active:not(.sidebar-item):not(.chat-filter-pill),
+body.dark-mode .chatListItem.active,
+body.dark-mode .chat-list-item.active,
+body.dark-mode .chatItem.active,
+body.dark-mode .chat-item.active {
+  background-color: #2a3942 !important;
+  border-color: #202c33 !important;
+  box-shadow: none !important;
+  color: var(--text) !important;
+}
+
+body.dark-mode .active:not(.sidebar-item):not(.chat-filter-pill) h1,
+body.dark-mode .active:not(.sidebar-item):not(.chat-filter-pill) h2,
+body.dark-mode .active:not(.sidebar-item):not(.chat-filter-pill) h3,
+body.dark-mode .active:not(.sidebar-item):not(.chat-filter-pill) h4,
+body.dark-mode .active:not(.sidebar-item):not(.chat-filter-pill) strong,
+body.dark-mode .active:not(.sidebar-item):not(.chat-filter-pill) div,
+body.dark-mode .chatListHeaderTitle {
+  color: #e9edef !important;
+}
+
+body.dark-mode .active:not(.sidebar-item):not(.chat-filter-pill) p,
+body.dark-mode .active:not(.sidebar-item):not(.chat-filter-pill) span,
+body.dark-mode .active:not(.sidebar-item):not(.chat-filter-pill) small,
+body.dark-mode .active:not(.sidebar-item):not(.chat-filter-pill) .time,
+body.dark-mode .lastMessageTime {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* Hover over unselected chats */
+body.dark-mode a[href^="/chats/"]:hover:not(.active),
+body.dark-mode a[href^="/groups/"]:hover:not(.active),
+body.dark-mode .chatListItem:hover,
+body.dark-mode .chat-list-item:hover,
+body.dark-mode .chatItem:hover,
+body.dark-mode .chat-item:hover {
+  background-color: #202c33 !important;
+}
+
+/* Chat Filter Pills */
+.chat-filters-row {
+  display: flex; gap: 8px; padding: 10px 16px; background: var(--bg); overflow-x: auto;
+  border-bottom: 1px solid var(--border); scrollbar-width: none; -ms-overflow-style: none;
+}
+.chat-filters-row::-webkit-scrollbar { display: none; }
+.chat-filter-pill {
+  background: var(--panel-2); color: var(--muted); border: none; padding: 6px 14px;
+  border-radius: 16px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s ease; white-space: nowrap;
+}
+.chat-filter-pill.active { background: #ef7e33; color: white; }
+body.dark-mode .chat-filter-pill { background: var(--panel); }
+body.dark-mode .chat-filter-pill.active { background: #ed8319; color: #111b21; }
+
+/* =========================================================
+   🌙 MAIN CHAT AREA & BUBBLES
+   ========================================================= */
+body.dark-mode .chatHeader, body.dark-mode .composer { background: var(--panel); border-color: var(--border); }
+body.dark-mode .messages { background-color: #0b141a !important; background-image: none !important; }
+body.dark-mode .composerInput { background-color: var(--panel-2) !important; color: var(--text) !important; }
+
+/* Action Icons (+ and Smiley) */
+body.dark-mode .composerActionBtn { background-color: var(--panel-2) !important; color: #aebac1 !important; border: 1px solid var(--border) !important; }
+body.dark-mode .composerActionBtn:hover { background-color: #2a3942 !important; color: #e9edef !important; }
+body.dark-mode .composerActionBtn svg { fill: currentColor !important; color: currentColor !important; }
+body.dark-mode .composerInput::placeholder { color: #8696a0 !important; }
+
+/* Message Bubbles */
+body.dark-mode .waBubble.mine { background: #005c4b !important; color: #e9edef !important; }
+body.dark-mode .waBubble.theirs { background: #202c33 !important; color: #e9edef !important; }
+body.dark-mode .waBubbleText, body.dark-mode .waBubble { color: #e9edef !important; }
+body.dark-mode .waSenderName { color: #53bdeb !important; }
+body.dark-mode .waTime { color: rgba(255,255,255,0.6) !important; }
+
+/* System Messages & Alerts */
+body.dark-mode .waSystemMessage { background-color: #182229 !important; color: #e9edef !important; box-shadow: 0 1px 2px rgba(0,0,0,0.2) !important; }
+body.dark-mode .waSystemMessageWrap * { color: #e9edef !important; }
+body.dark-mode .dayChip { background-color: #182229 !important; color: #8696a0 !important; border: none !important; box-shadow: 0 1px 2px rgba(0,0,0,0.3) !important; }
+body.dark-mode .unreadDivider span { background-color: #0b141a !important; color: #00a884 !important; }
+body.dark-mode .unreadDivider::before { background-color: #2a3942 !important; }
+
+/* Reply Snippets */
+body.dark-mode .waReplySnippet { background-color: rgba(0, 0, 0, 0.2) !important; }
+body.dark-mode .waReplyTitle { color: #53bdeb !important; }
+body.dark-mode .waReplyMessage { color: rgba(255, 255, 255, 0.7) !important; }
+
+/* Empty Chat Splash */
+body.dark-mode .chatEmpty { background: var(--panel-2); color: var(--text); }
+body.dark-mode .chatEmptyIllustration rect { fill: #111b21; }
+
+/* Threads */
+body.dark-mode .waThreadBadge { background: var(--panel-2); color: var(--text); border-color: var(--border); }
+body.dark-mode .waThreadBadge:hover { background: #2a3942; }
+body.dark-mode .threadOriginalMsg, body.dark-mode .threadReplyItem { background: var(--panel); color: var(--text); }
+
+/* Polls */
+body.dark-mode .waPollContainer { background-color: rgba(0,0,0,0.15) !important; }
+body.dark-mode .waPollOption { background-color: var(--panel-2) !important; }
+body.dark-mode .waPollOptionText { color: var(--text) !important; }
+body.dark-mode .waPollFooter { color: #8696a0 !important; }
+
+/* =========================================================
+   🌙 RIGHT DRAWERS (GROUP INFO / THREADS)
+   ========================================================= */
+body.dark-mode .chatInfoDrawer, body.dark-mode .threadDrawerBody { background: var(--bg) !important; }
+body.dark-mode .whatsappGroupTopCard, body.dark-mode .groupInfoSectionCard { background: var(--panel) !important; }
+
+body.dark-mode .chatInfoDrawerHeader, body.dark-mode .whatsappGroupInfoHeader { background-color: var(--panel) !important; color: var(--text) !important; border-bottom: 1px solid var(--border) !important; }
+body.dark-mode .groupMembersSection, body.dark-mode .chatInfoSectionContactOnly { background-color: var(--panel) !important; color: var(--text) !important; }
+body.dark-mode .chatInfoDrawerActions { background-color: var(--panel) !important; border-top: 1px solid var(--border) !important; }
+body.dark-mode .chatInfoDrawerActions .popup-btn-secondary { background-color: var(--panel-2) !important; color: var(--text) !important; border: 1px solid var(--border) !important; }
+body.dark-mode .chatInfoDrawerActions .popup-btn-secondary:hover { background-color: #2a3942 !important; }
+
+body.dark-mode .whatsappGroupName, body.dark-mode .chatInfoDrawerTitle, body.dark-mode .groupInfoSectionTitle, body.dark-mode .groupSectionLabel, body.dark-mode .groupMembersHeaderTitle, body.dark-mode .groupAddMemberCardHeader, body.dark-mode .chatInfoLabel, body.dark-mode .chatInfoValue { color: #e9edef !important; }
+body.dark-mode .whatsappGroupMeta, body.dark-mode .groupCreatedMeta { color: #8696a0 !important; }
+
+body.dark-mode .groupMemberSearchInput, body.dark-mode .groupMemberSelect, body.dark-mode .chatSearchFilterSelect { background-color: var(--panel-2) !important; color: var(--text) !important; border: 1px solid var(--border) !important; }
+body.dark-mode .chatSearchFilterSelect option { background-color: var(--panel) !important; color: var(--text) !important; }
+
+body.dark-mode .groupMemberWhatsappItem { background-color: transparent !important; border-bottom: 1px solid var(--border) !important; }
+body.dark-mode .groupMemberInfo strong, body.dark-mode .groupMemberInfo span { color: var(--text) !important; }
+body.dark-mode .groupAdminBadge { background-color: rgba(0, 168, 132, 0.15) !important; color: #00a884 !important; border: 1px solid rgba(0, 168, 132, 0.3) !important; }
+
+/* 1-on-1 Contact Info Cards */
+body.dark-mode .chatInfoCardRow { background-color: var(--panel) !important; border: 1px solid var(--border) !important; box-shadow: none !important; }
+body.dark-mode .chatInfoCardRow .chatInfoLabel { color: var(--muted) !important; }
+body.dark-mode .chatInfoCardRow .chatInfoValue { color: #e9edef !important; }
+
+/* =========================================================
+   🌙 POPUPS, MENUS & MODALS
+   ========================================================= */
+body.dark-mode .profile-popup, body.dark-mode .create-popup, body.dark-mode .waBubbleMenu { background: var(--panel-2) !important; box-shadow: 0 4px 15px rgba(0,0,0,0.5) !important; border: 1px solid var(--border) !important; }
+body.dark-mode .profile-popup::before, body.dark-mode .profile-popup::after, body.dark-mode .logout-confirm-box::before, body.dark-mode .logout-confirm-box::after, body.dark-mode .create-popup::before, body.dark-mode .create-popup::after { background-color: var(--panel-2) !important; border-color: var(--border) !important; box-shadow: none !important; }
+
+body.dark-mode .profile-menu-btn { background-color: var(--panel) !important; color: #e9edef !important; border: 1px solid var(--border) !important; }
+body.dark-mode .profile-menu-btn:hover { background-color: #2a3942 !important; }
+body.dark-mode .profile-menu-btn-danger { background-color: rgba(241, 92, 109, 0.1) !important; color: #f15c6d !important; }
+
+body.dark-mode .logout-confirm-box { background-color: var(--panel-2) !important; border: 1px solid var(--border) !important; }
+body.dark-mode .logout-confirm-title { color: #e9edef !important; }
+body.dark-mode .logout-confirm-text { color: var(--muted) !important; }
+body.dark-mode .logout-confirm-icon { background-color: var(--panel) !important; color: #ef7e33 !important; }
+body.dark-mode .logout-confirm-box .popup-btn-secondary { background-color: var(--panel) !important; color: #e9edef !important; border: 1px solid var(--border) !important; }
+body.dark-mode .logout-confirm-box .popup-btn-secondary:hover { background-color: #2a3942 !important; }
+
+/* Attach / Sticker Menus */
+body.dark-mode div.waAttachMenu, body.dark-mode div.composerPopupMenu, body.dark-mode div.stickerMenu { background-color: var(--panel-2) !important; border: 1px solid var(--border) !important; box-shadow: 0 4px 15px rgba(0,0,0,0.5) !important;}
+body.dark-mode button.waAttachMenuItem { background-color: transparent !important; }
+body.dark-mode button.waAttachMenuItem:hover { background-color: var(--panel) !important; }
+body.dark-mode button.waAttachMenuItem span { color: #e9edef !important; }
+body.dark-mode .stickerGrid button.stickerBtn { background-color: var(--panel) !important; border: 1px solid var(--border) !important; }
+body.dark-mode .stickerGrid button.stickerBtn:hover { background-color: #2a3942 !important; }
+
+/* List Hover States */
+body.dark-mode .contact-list-item:hover, body.dark-mode .waBubbleMenuItem:hover { background: var(--panel) !important; }
+
+/* =========================================================
+   🌙 EMPLOYEE LOGIN & AUTH
+   ========================================================= */
+body.dark-mode .employee-login-card, body.dark-mode .auth-popup-card { background-color: var(--panel-2) !important; border: 1px solid var(--border) !important; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important; }
+body.dark-mode .employee-login-header h1, body.dark-mode .employee-login-header p, body.dark-mode .auth-popup-top h2, body.dark-mode .auth-popup-desc, body.dark-mode .auth-input-group label, body.dark-mode .auth-success-body h3, body.dark-mode .auth-success-body p { color: #e9edef !important; }
+body.dark-mode .auth-input-group input { background-color: var(--panel) !important; color: #e9edef !important; border: 1px solid var(--border) !important; }
+body.dark-mode .auth-input-group input::placeholder { color: var(--muted) !important; }
+body.dark-mode .forgot-password-btn, body.dark-mode .resend-otp-btn { color: #ef7e33 !important; }
+body.dark-mode .auth-close-btn { color: var(--muted) !important; }
+body.dark-mode .auth-close-btn:hover { color: #e9edef !important; }
+body.dark-mode .auth-secondary-btn { background-color: var(--panel) !important; color: #e9edef !important; border: 1px solid var(--border) !important; }
+body.dark-mode .auth-secondary-btn:hover { background-color: #2a3942 !important; }
+body.dark-mode form { background-color: transparent !important; border: none !important; box-shadow: none !important; }
+
+/* =========================================================
+   🌙 FULL-SCREEN APP LOADER
+   ========================================================= */
+body.dark-mode div[class*="loader"], body.dark-mode div[class*="Loader"] { background-color: var(--bg) !important; }
+body.dark-mode div[class*="loader"] h1, body.dark-mode div[class*="loader"] h2, body.dark-mode div[class*="loader"] h3, body.dark-mode div[class*="loader"] p, body.dark-mode div[class*="Loader"] h1, body.dark-mode div[class*="Loader"] h2, body.dark-mode div[class*="Loader"] h3, body.dark-mode div[class*="Loader"] p { color: #e9edef !important; }
+body.dark-mode div[class*="loader"] > div, body.dark-mode div[class*="Loader"] > div { background-color: transparent !important; box-shadow: none !important; }
+
+/* =========================================================
+   ☀️ LIGHT MODE: CONTRAST & VISIBILITY FIXES
+   ========================================================= */
+body:not(.dark-mode) div[class*="loader"] h1, body:not(.dark-mode) div[class*="loader"] h2, body:not(.dark-mode) div[class*="loader"] h3, body:not(.dark-mode) div[class*="loader"] p, body:not(.dark-mode) div[class*="Loader"] h1, body:not(.dark-mode) div[class*="Loader"] h2, body:not(.dark-mode) div[class*="Loader"] h3, body:not(.dark-mode) div[class*="Loader"] p { color: #111b21 !important; }
+body:not(.dark-mode) .active:not(.sidebar-item):not(.chat-filter-pill), body:not(.dark-mode) a.active:not(.sidebar-item):not(.chat-filter-pill) { background-color: #f0f2f5 !important; }
+body:not(.dark-mode) .composerActionBtn { color: #54656f !important; background-color: transparent !important; }
+body:not(.dark-mode) .composerActionBtn:hover { background-color: #f0f2f5 !important; }
+body:not(.dark-mode) .composerActionBtn svg { fill: currentColor !important; color: currentColor !important; }
+body:not(.dark-mode) .composerInput::placeholder { color: #667781 !important; }
+
+/* =========================================================
+   🌙 NATIVE DARK MODE: MENTION POPUP FIX
+   ========================================================= */
+
+/* 1. Fix the Mention Popup Container */
+body.dark-mode .mentionPopup {
+  background-color: var(--panel-2) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.5) !important;
+}
+
+/* 2. Fix individual Mention items */
+body.dark-mode .mentionItem {
+  background-color: transparent !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+/* 3. Fix the text color inside Mentions */
+body.dark-mode .mentionName {
+  color: #e9edef !important;
+}
+
+/* 4. Highlight the selected/hovered mention */
+body.dark-mode .mentionItem:hover,
+body.dark-mode .mentionItem.selected {
+  background-color: #2a3942 !important;
+}
+
+/* 5. Quick fix for Sidebar Active indicator (The white diamond/square) */
+body.dark-mode .sidebar-item.active::after {
+  background-color: #ef7e33 !important; /* Matches your orange brand color */
+}

@@ -38,27 +38,17 @@ function getDisappearingThreshold(mode) {
 
 const seed = [
   {
-    id: "g1",
-    kind: "group",
-    name: "Oppty Team",
-    avatarUrl: "https://i.pravatar.cc/100?img=20",
-    isOnline: false,
-    lastSeen: "",
-    about: "Official team discussion group.",
-    contact: "opptyteam@oppty.com",
-    isAdmin: true,
-    blocked: false,
-    hasLeft: false,
-    disappearingMode: "off",
-    isBroadcast: false,
+    id: "g1", kind: "group", name: "Oppty Team", avatarUrl: "https://i.pravatar.cc/100?img=20",
+    isOnline: false, lastSeen: "", about: "Official team discussion group.", contact: "opptyteam@oppty.com",
+    isAdmin: true, blocked: false, hasLeft: false, disappearingMode: "off", isBroadcast: false, bookmarks: [],
     members: [
       { id: "emp-1", name: "Employee One", email: "employee@oppty.com", avatarUrl: "https://i.pravatar.cc/100?img=11", isAdmin: false },
       { id: "emp-3", name: "Dhamu", email: "dhamu@oppty.com", avatarUrl: "https://i.pravatar.cc/100?img=21", isAdmin: true },
       { id: "emp-4", name: "Jason", email: "jason@oppty.com", avatarUrl: "https://i.pravatar.cc/100?img=22", isAdmin: false },
     ],
     messages: [
-      { id: uid(), chatId: "g1", sender: "system", senderName: "System", type: "system", text: "You created this group", createdAt: now() - 1000 * 60 * 305, replyTo: null, deletedForAll: false, deletedFor: [], status: "read", unread: false, reactions: [], isStarred: false, isPinned: false },
-      { id: uid(), chatId: "g1", sender: "dhamu@oppty.com", senderName: "Dhamu", type: "text", text: "Welcome to Oppty Team group!", createdAt: now() - 1000 * 60 * 300, replyTo: null, deletedForAll: false, deletedFor: [], status: "read", unread: false, reactions: [], isStarred: false, isPinned: false },
+      { id: uid(), chatId: "g1", sender: "system", senderName: "System", type: "system", text: "You created this group", createdAt: now() - 1000 * 60 * 305, replyTo: null, deletedForAll: false, deletedFor: [], status: "read", unread: false, reactions: [], isStarred: false, isPinned: false, thread: [] },
+      { id: uid(), chatId: "g1", sender: "dhamu@oppty.com", senderName: "Dhamu", type: "text", text: "Welcome to Oppty Team group!", createdAt: now() - 1000 * 60 * 300, replyTo: null, deletedForAll: false, deletedFor: [], status: "read", unread: false, reactions: [], isStarred: false, isPinned: false, thread: [] },
     ],
   },
 ];
@@ -76,7 +66,8 @@ function normalizeAndMerge(persisted) {
       type: m.type ?? "text", text: m.text ?? "", fileUrl: m.fileUrl ?? "", fileName: m.fileName ?? "", replyTo: m.replyTo ?? null,
       deletedForAll: m.deletedForAll ?? false, deletedFor: Array.isArray(m.deletedFor) ? m.deletedFor : [], createdAt: safeTime(m.createdAt),
       isEdited: m.isEdited ?? false, status: m.status ?? "read", unread: m.unread ?? false, reactions: Array.isArray(m.reactions) ? m.reactions : [],
-      isStarred: m.isStarred ?? false, isPinned: m.isPinned ?? false, linkPreview: m.linkPreview ?? null, pollOptions: Array.isArray(m.pollOptions) ? m.pollOptions : [], allowMultiple: m.allowMultiple ?? false
+      isStarred: m.isStarred ?? false, isPinned: m.isPinned ?? false, linkPreview: m.linkPreview ?? null, pollOptions: Array.isArray(m.pollOptions) ? m.pollOptions : [], allowMultiple: m.allowMultiple ?? false,
+      thread: Array.isArray(m.thread) ? m.thread : []
     })) : [];
 
     const activeMessages = rawMessages.filter(m => {
@@ -87,7 +78,7 @@ function normalizeAndMerge(persisted) {
 
     return {
       ...c, kind: c.kind ?? "dm", about: c.about ?? "Hey there! I am using Oppty Chats.", contact: c.contact ?? "Not available", isAdmin: c.isAdmin ?? false, blocked: c.blocked ?? false, hasLeft: c.hasLeft ?? false,
-      disappearingMode, isBroadcast: c.isBroadcast ?? false, participants: Array.isArray(c.participants) ? c.participants : [], members: Array.isArray(c.members) ? c.members.map(m => ({ ...m, isAdmin: m.isAdmin ?? false })) : [], messages: activeMessages
+      disappearingMode, isBroadcast: c.isBroadcast ?? false, bookmarks: Array.isArray(c.bookmarks) ? c.bookmarks : [], participants: Array.isArray(c.participants) ? c.participants : [], members: Array.isArray(c.members) ? c.members.map(m => ({ ...m, isAdmin: m.isAdmin ?? false })) : [], messages: activeMessages
     };
   });
 
@@ -99,8 +90,7 @@ function normalizeAndMerge(persisted) {
 const ChatContext = createContext(null);
 
 function isSystemAdmin() { return getAuthUser()?.role === "admin"; }
-
-function createSystemMessage(chatId, text) { return { id: uid(), chatId, sender: "system", senderName: "System", type: "system", text, createdAt: now(), replyTo: null, deletedForAll: false, deletedFor: [], status: "read", unread: false, reactions: [], isStarred: false, isPinned: false }; }
+function createSystemMessage(chatId, text) { return { id: uid(), chatId, sender: "system", senderName: "System", type: "system", text, createdAt: now(), replyTo: null, deletedForAll: false, deletedFor: [], status: "read", unread: false, reactions: [], isStarred: false, isPinned: false, thread: [] }; }
 
 function reducer(state, action) {
   const currentUser = getAuthUser();
@@ -146,21 +136,36 @@ function reducer(state, action) {
       const text = action.text.trim(); if (!text) return state;
       const target = state.chats.find((c) => c.id === action.chatId); if (!target || target.blocked || target.hasLeft) return state;
       const linkPreview = generateMockLinkPreview(text);
-      const msg = { id: uid(), chatId: action.chatId, sender: currentEmail, senderName: currentUser?.name || "You", type: "text", text, createdAt: now(), replyTo: action.replyTo ? { id: action.replyTo.id, text: action.replyTo.text, type: action.replyTo.type, fileName: action.replyTo.fileName, senderName: action.replyTo.senderName || 'Them' } : null, deletedForAll: false, deletedFor: [], status: "read", unread: false, reactions: [], isStarred: false, isPinned: false, linkPreview };
+      const msg = { id: uid(), chatId: action.chatId, sender: currentEmail, senderName: currentUser?.name || "You", type: "text", text, createdAt: now(), replyTo: action.replyTo ? { id: action.replyTo.id, text: action.replyTo.text, type: action.replyTo.type, fileName: action.replyTo.fileName, senderName: action.replyTo.senderName || 'Them' } : null, deletedForAll: false, deletedFor: [], status: "read", unread: false, reactions: [], isStarred: false, isPinned: false, linkPreview, thread: [] };
       const chats = state.chats.map((c) => c.id === action.chatId ? { ...c, messages: [...c.messages, msg] } : c);
+      saveChats(chats); return { chats };
+    }
+
+    case "SEND_THREAD_MESSAGE": {
+      const text = action.text.trim(); if (!text) return state;
+      const chats = state.chats.map((c) => {
+        if (c.id !== action.chatId) return c;
+        return {
+          ...c, messages: c.messages.map((m) => {
+            if (m.id !== action.messageId) return m;
+            const threadMsg = { id: uid(), sender: currentEmail, senderName: currentUser?.name || "You", text, createdAt: now() };
+            return { ...m, thread: [...(m.thread || []), threadMsg] };
+          })
+        };
+      });
       saveChats(chats); return { chats };
     }
 
     case "SEND_ATTACHMENT": {
       const target = state.chats.find((c) => c.id === action.chatId); if (!target || target.blocked || target.hasLeft) return state;
-      const msg = { id: uid(), chatId: action.chatId, sender: currentEmail, senderName: currentUser?.name || "You", type: action.attachmentType, text: action.fileName || "", fileUrl: action.fileUrl || "", fileName: action.fileName || "", createdAt: now(), replyTo: action.replyTo ? { id: action.replyTo.id, text: action.replyTo.text, type: action.replyTo.type, fileName: action.replyTo.fileName, senderName: action.replyTo.senderName || 'Them' } : null, deletedForAll: false, deletedFor: [], status: "read", unread: false, reactions: [], isStarred: false, isPinned: false };
+      const msg = { id: uid(), chatId: action.chatId, sender: currentEmail, senderName: currentUser?.name || "You", type: action.attachmentType, text: action.fileName || "", fileUrl: action.fileUrl || "", fileName: action.fileName || "", createdAt: now(), replyTo: action.replyTo ? { id: action.replyTo.id, text: action.replyTo.text, type: action.replyTo.type, fileName: action.replyTo.fileName, senderName: action.replyTo.senderName || 'Them' } : null, deletedForAll: false, deletedFor: [], status: "read", unread: false, reactions: [], isStarred: false, isPinned: false, thread: [] };
       const chats = state.chats.map((c) => c.id === action.chatId ? { ...c, messages: [...c.messages, msg] } : c);
       saveChats(chats); return { chats };
     }
 
     case "SEND_POLL": {
       const target = state.chats.find((c) => c.id === action.chatId); if (!target || target.blocked || target.hasLeft) return state;
-      const msg = { id: uid(), chatId: action.chatId, sender: currentEmail, senderName: currentUser?.name || "You", type: "poll", text: action.question, createdAt: now(), pollOptions: action.options.map(opt => ({ id: uid(), text: opt, votedBy: [] })), allowMultiple: action.allowMultiple, replyTo: null, deletedForAll: false, deletedFor: [], status: "read", unread: false, reactions: [], isStarred: false, isPinned: false };
+      const msg = { id: uid(), chatId: action.chatId, sender: currentEmail, senderName: currentUser?.name || "You", type: "poll", text: action.question, createdAt: now(), pollOptions: action.options.map(opt => ({ id: uid(), text: opt, votedBy: [] })), allowMultiple: action.allowMultiple, replyTo: null, deletedForAll: false, deletedFor: [], status: "read", unread: false, reactions: [], isStarred: false, isPinned: false, thread: [] };
       const chats = state.chats.map((c) => c.id === action.chatId ? { ...c, messages: [...c.messages, msg] } : c);
       saveChats(chats); return { chats };
     }
@@ -181,6 +186,23 @@ function reducer(state, action) {
             return { ...msg, pollOptions: newOptions };
           })
         };
+      });
+      saveChats(chats); return { chats };
+    }
+
+    case "ADD_BOOKMARK": {
+      const chats = state.chats.map((c) => {
+        if (c.id !== action.chatId) return c;
+        const newBookmark = { id: uid(), title: action.title, url: action.url };
+        return { ...c, bookmarks: [...(c.bookmarks || []), newBookmark], messages: [...c.messages, createSystemMessage(c.id, `You pinned a bookmark: ${action.title}`)] };
+      });
+      saveChats(chats); return { chats };
+    }
+    
+    case "REMOVE_BOOKMARK": {
+      const chats = state.chats.map((c) => {
+        if (c.id !== action.chatId) return c;
+        return { ...c, bookmarks: (c.bookmarks || []).filter(b => b.id !== action.bookmarkId) };
       });
       saveChats(chats); return { chats };
     }
@@ -232,7 +254,7 @@ function reducer(state, action) {
     case "ADD_CONTACT": {
       const name = action.payload.name.trim(); if (!name) return state;
       const targetEmail = action.payload.contact?.trim();
-      const newChat = { id: action.payload.id || uid(), kind: "dm", name, avatarUrl: action.payload.avatarUrl || `https://i.pravatar.cc/100?u=${encodeURIComponent(name + Date.now())}`, isOnline: true, lastSeen: "online", about: action.payload.about || "Hey there! I am using Oppty Chats.", contact: targetEmail || "Not available", blocked: false, hasLeft: false, disappearingMode: "off", isBroadcast: false, participants: targetEmail ? [currentEmail, targetEmail] : [currentEmail], messages: [], };
+      const newChat = { id: action.payload.id || uid(), kind: "dm", name, avatarUrl: action.payload.avatarUrl || `https://i.pravatar.cc/100?u=${encodeURIComponent(name + Date.now())}`, isOnline: true, lastSeen: "online", about: action.payload.about || "Hey there! I am using Oppty Chats.", contact: targetEmail || "Not available", blocked: false, hasLeft: false, disappearingMode: "off", isBroadcast: false, bookmarks: [], participants: targetEmail ? [currentEmail, targetEmail] : [currentEmail], messages: [], };
       const chats = [newChat, ...state.chats];
       saveChats(chats); return { chats };
     }
@@ -241,14 +263,7 @@ function reducer(state, action) {
       const name = action.payload.name.trim(); if (!name) return state;
       const sysMsg = createSystemMessage(uid(), "You created this group");
       const adminMember = { id: currentUser?.id || uid(), name: currentUser?.name || "You", email: currentEmail, avatarUrl: currentUser?.avatarUrl, isAdmin: true };
-      const newGroup = { 
-        id: sysMsg.chatId, kind: "group", name, 
-        avatarUrl: action.payload.avatarUrl || `https://i.pravatar.cc/100?u=${encodeURIComponent("group_" + name + Date.now())}`, 
-        isOnline: false, lastSeen: "", about: action.payload.about?.trim() || "New group created in Oppty Chats.", contact: action.payload.contact?.trim() || "Not available", 
-        isAdmin: true, blocked: false, hasLeft: false, disappearingMode: "off", 
-        isBroadcast: action.payload.isBroadcast ?? false, // Handles initial broadcast setting
-        members: [adminMember], messages: [sysMsg], 
-      };
+      const newGroup = { id: sysMsg.chatId, kind: "group", name, avatarUrl: action.payload.avatarUrl || `https://i.pravatar.cc/100?u=${encodeURIComponent("group_" + name + Date.now())}`, isOnline: false, lastSeen: "", about: action.payload.about?.trim() || "New group created in Oppty Chats.", contact: action.payload.contact?.trim() || "Not available", isAdmin: true, blocked: false, hasLeft: false, disappearingMode: "off", isBroadcast: action.payload.isBroadcast ?? false, bookmarks: [], members: [adminMember], messages: [sysMsg], };
       const chats = [newGroup, ...state.chats];
       saveChats(chats); return { chats };
     }
@@ -350,6 +365,25 @@ export function ChatProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
   const [toasts, setToasts] = useState([]);
 
+  // --- NEW: THEME MANAGER (DARK MODE) ---
+  const [theme, setTheme] = useState(() => localStorage.getItem("opty_theme") || "light");
+  
+  useEffect(() => {
+    if (theme === "dark") {
+      document.body.classList.add("dark-mode");
+    } else {
+      document.body.classList.remove("dark-mode");
+    }
+    localStorage.setItem("opty_theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === "light" ? "dark" : "light");
+  };
+
+  // --- NEW: CHAT FILTER ENGINE ---
+  const [chatFilter, setChatFilter] = useState("all"); // 'all', 'unread', 'mentions', 'groups'
+
   const currentUser = getAuthUser();
   const currentUserEmail = currentUser?.email;
 
@@ -387,6 +421,8 @@ export function ChatProvider({ children }) {
       })
       .map(chat => {
         let updatedChat = { ...chat };
+        let otherUserStatus = "available";
+        
         if (chat.kind === "dm" && chat.participants) {
           const otherEmail = chat.participants.find(e => e !== currentUserEmail) || chat.contact;
           const otherUser = employeeDB.find(emp => emp.email === otherEmail);
@@ -394,8 +430,19 @@ export function ChatProvider({ children }) {
             updatedChat.name = otherUser.name;
             updatedChat.avatarUrl = otherUser.avatarUrl;
             updatedChat.contact = otherUser.email;
+            otherUserStatus = otherUser.status || "available";
           }
         }
+        
+        updatedChat.otherUserStatus = otherUserStatus;
+
+        if (updatedChat.members) {
+          updatedChat.members = updatedChat.members.map(m => {
+            const dbEmp = employeeDB.find(e => e.email === m.email);
+            return { ...m, status: dbEmp?.status || "available" };
+          });
+        }
+
         updatedChat.messages = chat.messages
           .filter(m => !(m.deletedFor || []).includes(currentUserEmail))
           .map(m => ({ ...m, isMine: m.sender === currentUserEmail || m.sender === "me" }));
@@ -403,12 +450,30 @@ export function ChatProvider({ children }) {
       });
   }, [state.chats, currentUserEmail]);
 
+  // --- DERIVED FILTERED LIST FOR THE UI ---
+  const displayChats = useMemo(() => {
+    let list = userSpecificChats;
+    if (chatFilter === "unread") {
+      list = list.filter(c => c.messages.some(m => m.unread && !m.isMine));
+    } else if (chatFilter === "groups") {
+      list = list.filter(c => c.kind === "group");
+    } else if (chatFilter === "mentions") {
+       const myName = currentUser?.name || "";
+       list = list.filter(c => c.messages.some(m => m.text?.includes(`@${myName}`)));
+    }
+    return list;
+  }, [userSpecificChats, chatFilter, currentUser]);
+
   const api = useMemo(
     () => ({
       isLoading, showToast, 
       chats: userSpecificChats,
+      displayChats, // Provide the filtered list to your ChatList component!
+      chatFilter, setChatFilter, // For the filter pills
+      theme, toggleTheme, // For Dark Mode
       getChatById: (id) => userSpecificChats.find((c) => String(c.id) === String(id)),
       sendMessage: (chatId, text, replyTo = null) => dispatch({ type: "SEND", chatId, text, replyTo }),
+      sendThreadMessage: (chatId, messageId, text) => dispatch({ type: "SEND_THREAD_MESSAGE", chatId, messageId, text }),
       sendAttachment: (chatId, attachmentType, fileUrl, fileName, replyTo = null) => dispatch({ type: "SEND_ATTACHMENT", chatId, attachmentType, fileUrl, fileName, replyTo }),
       sendPoll: (chatId, question, options, allowMultiple) => dispatch({ type: "SEND_POLL", chatId, question, options, allowMultiple }),
       votePoll: (chatId, messageId, optionId) => dispatch({ type: "VOTE_POLL", chatId, messageId, optionId }),
@@ -422,10 +487,12 @@ export function ChatProvider({ children }) {
       addGroup: (payload) => dispatch({ type: "ADD_GROUP", payload }),
       updateChatName: (chatId, name) => dispatch({ type: "UPDATE_CHAT_NAME", chatId, name }),
       updateGroupAbout: (chatId, about) => dispatch({ type: "UPDATE_GROUP_ABOUT", chatId, about }),
+      addBookmark: (chatId, title, url) => dispatch({ type: "ADD_BOOKMARK", chatId, title, url }),
+      removeBookmark: (chatId, bookmarkId) => dispatch({ type: "REMOVE_BOOKMARK", chatId, bookmarkId }),
       deleteChat: (chatId) => dispatch({ type: "DELETE_CHAT", chatId }),
       toggleBlockChat: (chatId) => dispatch({ type: "TOGGLE_BLOCK_CHAT", chatId }),
       setDisappearingMode: (chatId, mode) => dispatch({ type: "SET_DISAPPEARING_MODE", chatId, mode }),
-      toggleBroadcastMode: (chatId) => dispatch({ type: "TOGGLE_BROADCAST_MODE", chatId }), // <--- New API export
+      toggleBroadcastMode: (chatId) => dispatch({ type: "TOGGLE_BROADCAST_MODE", chatId }),
       addGroupMember: (chatId, member) => dispatch({ type: "ADD_GROUP_MEMBER", chatId, member }),
       removeGroupMember: (chatId, memberId) => dispatch({ type: "REMOVE_GROUP_MEMBER", chatId, memberId }),
       promoteAdmin: (chatId, memberId) => dispatch({ type: "PROMOTE_ADMIN", chatId, memberId }),
@@ -434,7 +501,7 @@ export function ChatProvider({ children }) {
       resetChats: () => dispatch({ type: "RESET" }),
       isAdmin: isSystemAdmin(),
     }),
-    [userSpecificChats, isLoading]
+    [userSpecificChats, displayChats, chatFilter, theme, isLoading]
   );
 
   return (

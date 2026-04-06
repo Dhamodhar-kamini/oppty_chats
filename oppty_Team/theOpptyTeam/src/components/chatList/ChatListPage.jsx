@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { useChats } from "../../context/ChatContext.jsx";
 import opptyLogo from "../../assets/opptylogo.png";
 
+
 function formatTime(ts) {
   if (!ts) return "";
   return new Date(ts).toLocaleTimeString([], {
@@ -32,6 +33,7 @@ function SectionTitle({ mode }) {
 export default function ChatListPage({ mode = "dm" }) {
   const { chats } = useChats();
   const [q, setQ] = useState("");
+  
 
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
@@ -58,6 +60,8 @@ export default function ChatListPage({ mode = "dm" }) {
           placeholder={placeholder}
         />
       </div>
+
+      
 
       <div className="chatList" role="list">
         {filtered.map((chat) => {

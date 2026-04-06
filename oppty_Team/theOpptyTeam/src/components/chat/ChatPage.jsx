@@ -6,7 +6,6 @@ import { employeeDB } from "../../data/employees";
 import MessageBubble from "./MessageBubble.jsx";
 import { getAuthUser } from "../../utils/auth.js";
 
-// Sync local storage to DB so new employees survive page reloads
 try {
   const savedEmps = JSON.parse(localStorage.getItem("opty_employees"));
   if (savedEmps && Array.isArray(savedEmps) && savedEmps.length >= employeeDB.length) {
@@ -15,7 +14,6 @@ try {
   }
 } catch(e) {}
 
-// Standard Helper Functions
 function formatDay(ts) {
   const date = new Date(ts);
   const today = new Date();
@@ -24,6 +22,10 @@ function formatDay(ts) {
   if (date.toDateString() === today.toDateString()) return "Today";
   if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
   return date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+}
+
+function formatTime(ts) {
+  return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 function escapeRegExp(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
@@ -42,9 +44,9 @@ export default function ChatPage() {
   const isDesktop = useMediaQuery("(min-width: 900px)");
 
   const {
-    chats, getChatById, sendMessage, sendAttachment, sendPoll, votePoll, editMessage, toggleReaction, toggleStar, togglePin,
+    chats, getChatById, sendMessage, sendThreadMessage, sendAttachment, sendPoll, votePoll, editMessage, toggleReaction, toggleStar, togglePin,
     updateChatName, updateGroupAbout, deleteChat, toggleBlockChat, addGroupMember, removeGroupMember,
-    promoteAdmin, demoteAdmin, leaveGroup, deleteMessageForMe, deleteMessageForAll, setDisappearingMode, toggleBroadcastMode, addContact, isAdmin, isLoading, showToast
+    promoteAdmin, demoteAdmin, leaveGroup, deleteMessageForMe, deleteMessageForAll, setDisappearingMode, toggleBroadcastMode, addContact, addBookmark, removeBookmark, isAdmin, isLoading, showToast
   } = useChats();
 
   const chat = chatId ? getChatById(chatId) : null;
@@ -57,7 +59,6 @@ export default function ChatPage() {
   }, [chat, authUser]);
 
   const canEditGroupInfo = chat?.kind === "group" ? (isAdmin || isGroupAdmin) : true;
-  
   const isBroadcast = chat?.isBroadcast === true;
   const canPost = !chat?.hasLeft && (!isBroadcast || isGroupAdmin || isAdmin);
 
@@ -78,6 +79,13 @@ export default function ChatPage() {
   const [activeSearchIndex, setActiveSearchIndex] = useState(0);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [showChatInfo, setShowChatInfo] = useState(false);
+
+  const [activeThreadMsgId, setActiveThreadMsgId] = useState(null);
+  const [threadText, setThreadText] = useState("");
+
+  const [showAddBookmark, setShowAddBookmark] = useState(false);
+  const [bookmarkTitle, setBookmarkTitle] = useState("");
+  const [bookmarkUrl, setBookmarkUrl] = useState("");
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState("");
@@ -215,6 +223,13 @@ export default function ChatPage() {
     });
   }, [chat, chats]);
 
+  const isOtherUserDND = chat?.kind === 'dm' && chat?.otherUserStatus === 'dnd';
+
+  const activeThreadMsg = useMemo(() => {
+    if (!chat || !activeThreadMsgId) return null;
+    return chat.messages.find(m => m.id === activeThreadMsgId);
+  }, [chat, activeThreadMsgId]);
+
   const handleStartDirectMessage = (empEmail) => {
     if (empEmail === authUser?.email) return; 
     const emp = employeeDB.find(e => e.email === empEmail);
@@ -234,6 +249,7 @@ export default function ChatPage() {
     setReplyingTo(null); setEditingMessage(null); setSelectionMode(false); setSelectedMessages([]);
     setSearchOpen(false); setSearchTerm(""); setFilterSender(""); setFilterDate("");
     setMentionState({ active: false, query: "", startIndex: -1, selectedIndex: 0 });
+    setActiveThreadMsgId(null);
     
     if (chat && chat.isOnline) { setIsTyping(true); const t = setTimeout(() => setIsTyping(false), 3000); return () => clearTimeout(t); } 
     else { setIsTyping(false); }
@@ -252,7 +268,7 @@ export default function ChatPage() {
     };
     const handleEscape = (event) => {
       if (event.key === "Escape") {
-        setShowOptionsMenu(false); setShowChatInfo(false); setIsEditingName(false); setIsEditingAbout(false); setPreviewMedia(""); setShowMediaPanel(false); setShowAttachMenu(false); setShowStickerMenu(false); setForwardingMessage(null); setDeletePrompt(null); setShowPollModal(false);
+        setShowOptionsMenu(false); setShowChatInfo(false); setIsEditingName(false); setIsEditingAbout(false); setPreviewMedia(""); setShowMediaPanel(false); setShowAttachMenu(false); setShowStickerMenu(false); setForwardingMessage(null); setDeletePrompt(null); setShowPollModal(false); setActiveThreadMsgId(null);
         if (mentionState.active) setMentionState(p => ({ ...p, active: false }));
         if (selectionMode) { setSelectionMode(false); setSelectedMessages([]); }
         if (searchOpen) { setSearchOpen(false); setSearchTerm(""); setFilterSender(""); setFilterDate(""); setActiveSearchIndex(0); }
@@ -330,6 +346,20 @@ export default function ChatPage() {
     if (composerInputRef.current) composerInputRef.current.style.height = "auto";
   };
 
+  const onSendThread = () => {
+    const v = threadText.trim(); if (!v || !activeThreadMsgId) return;
+    sendThreadMessage(chat.id, activeThreadMsgId, v);
+    setThreadText("");
+  };
+
+  const handleSaveBookmark = () => {
+    if (!bookmarkTitle.trim() || !bookmarkUrl.trim()) return;
+    let finalUrl = bookmarkUrl.trim();
+    if (!/^https?:\/\//i.test(finalUrl)) finalUrl = `https://${finalUrl}`;
+    addBookmark(chat.id, bookmarkTitle.trim(), finalUrl);
+    setBookmarkTitle(""); setBookmarkUrl(""); setShowAddBookmark(false); showToast("Bookmark added");
+  };
+
   const handleAttachmentAction = (type) => {
     if (chat.blocked || !canPost) return;
     if (type === "image") imageInputRef.current?.click();
@@ -372,7 +402,7 @@ export default function ChatPage() {
   const handleToggleOptions = () => setShowOptionsMenu((prev) => !prev);
   const handleScrollToLatest = () => { endRef.current?.scrollIntoView({ behavior: "smooth" }); setShowOptionsMenu(false); };
 
-  const handleOpenChatInfo = () => { setShowChatInfo(true); setShowOptionsMenu(false); setEditedName(chat.name || ""); setIsEditingName(false); setDraftAbout(chat.about || ""); setIsEditingAbout(false); };
+  const handleOpenChatInfo = () => { setShowChatInfo(true); setShowOptionsMenu(false); setEditedName(chat.name || ""); setIsEditingName(false); setDraftAbout(chat.about || ""); setIsEditingAbout(false); setShowAddBookmark(false); };
   const handleCloseChatInfo = () => { setShowChatInfo(false); setIsEditingName(false); setIsEditingAbout(false); setEditedName(chat.name || ""); setDraftAbout(chat.about || ""); setSelectedMemberId(""); setMemberSearch(""); setGroupMemberFilter(""); };
 
   const handleStartEditName = () => { if (canEditGroupInfo) { setEditedName(chat.name || ""); setIsEditingName(true); }};
@@ -402,8 +432,8 @@ export default function ChatPage() {
   const handleFocusAddMember = () => { if (canEditGroupInfo) { addMemberSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); setTimeout(() => addMemberSearchRef.current?.focus(), 250); }};
   const handleFocusMemberSearch = () => { membersListSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); setTimeout(() => membersFilterRef.current?.focus(), 250); };
 
-  const handleReplyMessage = (message) => { setReplyingTo(message); setEditingMessage(null); };
-  const handleEditMessage = (message) => { setEditingMessage(message); setText(message.text); setReplyingTo(null); if (composerInputRef.current) { composerInputRef.current.style.height = "auto"; composerInputRef.current.style.height = Math.min(composerInputRef.current.scrollHeight, 120) + "px"; } };
+  const handleReplyMessage = (message) => { setReplyingTo(message); setEditingMessage(null); setActiveThreadMsgId(null); };
+  const handleEditMessage = (message) => { setEditingMessage(message); setText(message.text); setReplyingTo(null); setActiveThreadMsgId(null); if (composerInputRef.current) { composerInputRef.current.style.height = "auto"; composerInputRef.current.style.height = Math.min(composerInputRef.current.scrollHeight, 120) + "px"; } };
 
   const handleForwardSubmit = (targetChatId) => {
     if (!forwardingMessage) return;
@@ -449,7 +479,14 @@ export default function ChatPage() {
                   {chat.isBroadcast && <span className="broadcastBadge">📢 Announcement</span>}
                 </div>
                 <div className="chatHeaderMeta">
-                  {isTyping ? (<span className="typingIndicator">{chat.kind === 'group' ? "Someone is typing..." : "typing..."}</span>) : chat.kind === "group" ? (`${memberCount} member${memberCount !== 1 ? "s" : ""}`) : chat.blocked ? ("blocked") : chat.isOnline ? ("online") : chat.lastSeen ? (chat.lastSeen) : ("offline")}
+                  {isTyping ? (<span className="typingIndicator">{chat.kind === 'group' ? "Someone is typing..." : "typing..."}</span>) 
+                  : chat.kind === "group" ? (`${memberCount} member${memberCount !== 1 ? "s" : ""}`) 
+                  : chat.blocked ? ("blocked") 
+                  : (
+                    <span className="userStatusText">
+                      {chat.otherUserStatus === 'dnd' ? '🔴 Do Not Disturb' : chat.otherUserStatus === 'meeting' ? '🗓️ In a Meeting' : '🟢 Available'}
+                    </span>
+                  )}
                 </div>
               </div>
             </button>
@@ -541,6 +578,40 @@ export default function ChatPage() {
                       <div className="chatEditNameBox"><input ref={editAboutInputRef} type="text" className="chatEditNameInput" value={draftAbout} onChange={(e) => setDraftAbout(e.target.value)} placeholder="Group description..." onKeyDown={(e) => { if (e.key === "Enter") handleSaveEditAbout(); }} /><div className="chatEditNameActions"><button type="button" className="popup-btn popup-btn-secondary" onClick={handleCancelEditAbout}>Cancel</button><button type="button" className="popup-btn popup-btn-danger" onClick={handleSaveEditAbout} disabled={!draftAbout.trim()}>Save</button></div></div>
                     )}
                   </div>
+                  
+                  <div className="groupDescriptionCard" style={{marginTop: 10}}>
+                    <div className="groupSectionLabel" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                      <span>Saved Bookmarks</span>
+                      {canEditGroupInfo && !showAddBookmark && (
+                        <button type="button" className="groupInlineEditBtn" style={{fontSize: 18, padding: 0}} onClick={() => setShowAddBookmark(true)}>+</button>
+                      )}
+                    </div>
+                    {showAddBookmark && (
+                      <div className="chatEditNameBox" style={{marginTop: 8}}>
+                        <input type="text" className="profile-input" value={bookmarkTitle} onChange={(e) => setBookmarkTitle(e.target.value)} placeholder="Link Title (e.g. Jira Board)" style={{marginBottom: 6}} />
+                        <input type="text" className="profile-input" value={bookmarkUrl} onChange={(e) => setBookmarkUrl(e.target.value)} placeholder="URL (https://...)" />
+                        <div className="chatEditNameActions" style={{marginTop: 8}}>
+                          <button type="button" className="popup-btn popup-btn-secondary" onClick={() => setShowAddBookmark(false)}>Cancel</button>
+                          <button type="button" className="popup-btn popup-btn-danger" onClick={handleSaveBookmark} disabled={!bookmarkTitle.trim() || !bookmarkUrl.trim()}>Save</button>
+                        </div>
+                      </div>
+                    )}
+                    {(!chat.bookmarks || chat.bookmarks.length === 0) && !showAddBookmark ? (
+                      <div className="muted" style={{fontSize: 13, marginTop: 4}}>No bookmarks saved yet.</div>
+                    ) : (
+                      <div className="bookmarkList">
+                        {chat.bookmarks?.map(b => (
+                          <div key={b.id} className="bookmarkCard">
+                            <a href={b.url} target="_blank" rel="noreferrer" className="bookmarkLink">📌 {b.title}</a>
+                            {canEditGroupInfo && (
+                              <button className="iconBtn" style={{padding: 2, margin: 0, opacity: 0.6}} onClick={() => removeBookmark(chat.id, b.id)}>✕</button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   <div className="groupCreatedMeta">Group created by +91 78934 58943, on 2/24/2026 at 11:44 AM</div>
                 </>
               )}
@@ -597,7 +668,6 @@ export default function ChatPage() {
               <>
                 <div className="groupInfoSectionCard mediaLinksDocsCard" onClick={() => setShowMediaPanel(true)} role="button" tabIndex={0}><div className="groupInfoSectionTop"><div className="groupInfoSectionTitle">Media, links and docs</div><div className="groupInfoSectionCount">{totalSharedCount}</div></div><div className="groupMediaPreviewRow">{mediaItems.slice(0, 2).length ? (mediaItems.slice(0, 2).map((item) => (<button key={item.id} type="button" className="groupMediaPreviewItem" onClick={(e) => { e.stopPropagation(); if (item.fileUrl && item.fileUrl !== "#") setPreviewMedia(item.fileUrl); }}><img src={item.fileUrl} alt={item.fileName} /></button>))) : ( <div className="muted">No media, docs or links shared yet.</div> )}</div></div>
                 
-                {/* --- RESTRICTED TO ADMINS ONLY --- */}
                 {canEditGroupInfo && (
                   <div className="groupInfoSectionCard">
                     <div className="groupInfoSectionTop" style={{marginBottom: 8}}>
@@ -608,10 +678,7 @@ export default function ChatPage() {
                         <input 
                           type="checkbox" 
                           checked={chat.isBroadcast || false} 
-                          onChange={() => { 
-                            toggleBroadcastMode(chat.id); 
-                            showToast(chat.isBroadcast ? "Broadcast mode disabled" : "Broadcast mode enabled"); 
-                          }} 
+                          onChange={() => { toggleBroadcastMode(chat.id); showToast(chat.isBroadcast ? "Broadcast mode disabled" : "Broadcast mode enabled"); }} 
                           style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                         />
                         <span style={{ fontSize: '14px', fontWeight: 500 }}>Only admins can send messages</span>
@@ -659,7 +726,15 @@ export default function ChatPage() {
                         >
                           <div className="groupMemberInfoWrap">
                             <img src={member.avatarUrl || "https://i.pravatar.cc/100"} alt={member.name} className="groupMemberAvatar" />
-                            <div className="groupMemberInfo"><div style={{display: 'flex', alignItems: 'center'}}><strong>{member.name}</strong>{member.isAdmin && <span className="groupAdminBadge">Admin</span>}</div><span>{member.email}</span></div>
+                            <div className="groupMemberInfo">
+                              <div style={{display: 'flex', alignItems: 'center'}}><strong>{member.name}</strong>{member.isAdmin && <span className="groupAdminBadge">Admin</span>}</div>
+                              <span>
+                                {member.email} 
+                                <span style={{opacity: 0.8, fontSize: '0.9em', marginLeft: 4}}>
+                                  {member.status === 'dnd' ? '• 🔴 DND' : member.status === 'meeting' ? '• 🗓️ Meeting' : '• 🟢 Available'}
+                                </span>
+                              </span>
+                            </div>
                           </div>
                           <div className="groupMemberRightMeta" onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'flex-end', marginLeft: '12px' }}>
                             {canEditGroupInfo && member.email !== authUser?.email && !member.isAdmin && <button type="button" className="groupMemberActionBtn" onClick={() => handlePromoteAdmin(member.id)}>Make Admin</button>}
@@ -682,6 +757,53 @@ export default function ChatPage() {
               </>
             )}
             <div className="chatInfoDrawerActions"><button type="button" className="popup-btn popup-btn-secondary" onClick={handleCloseChatInfo}>Close</button></div>
+          </aside>
+        </div>
+      )}
+
+      {activeThreadMsgId && activeThreadMsg && (
+        <div className="chatInfoOverlay" onClick={() => setActiveThreadMsgId(null)}>
+          <aside className="chatInfoDrawer threadDrawer" onClick={(e) => e.stopPropagation()}>
+            <div className="chatInfoDrawerHeader whatsappGroupInfoHeader">
+              <button type="button" className="iconBtn" onClick={() => setActiveThreadMsgId(null)}>←</button>
+              <div className="chatInfoDrawerTitle">Thread</div>
+            </div>
+            
+            <div className="threadDrawerBody">
+              <div className="threadOriginalMsg">
+                <div className="waSenderName">{activeThreadMsg.senderName}</div>
+                <div className="threadMsgText">{activeThreadMsg.text}</div>
+                <div className="waTime">{formatTime(activeThreadMsg.createdAt)}</div>
+              </div>
+              
+              <div className="threadRepliesList">
+                {activeThreadMsg.thread && activeThreadMsg.thread.length > 0 ? (
+                  activeThreadMsg.thread.map(tm => (
+                    <div key={tm.id} className="threadReplyItem">
+                      <div className="waSenderName">{tm.senderName}</div>
+                      <div className="threadMsgText">{tm.text}</div>
+                      <div className="waTime">{formatTime(tm.createdAt)}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="muted" style={{textAlign: 'center', marginTop: 40}}>No replies yet. Start the conversation!</div>
+                )}
+              </div>
+            </div>
+
+            <footer className="composer threadComposer">
+              <textarea 
+                className="composerInput" 
+                value={threadText} 
+                onChange={(e) => setThreadText(e.target.value)} 
+                placeholder="Reply in thread..." 
+                rows={1}
+                onKeyDown={(e) => { if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onSendThread(); }}}
+              />
+              <button type="button" className="sendBtn" onClick={onSendThread} disabled={!threadText.trim()}>
+                <svg className="sendIcon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
+              </button>
+            </footer>
           </aside>
         </div>
       )}
@@ -718,6 +840,7 @@ export default function ChatPage() {
                         onPin={() => togglePin(chat.id, m.id)}
                         onVote={(optId) => votePoll(chat.id, m.id, optId)}
                         onReply={() => handleReplyMessage(m)}
+                        onOpenThread={() => setActiveThreadMsgId(m.id)} 
                         onEdit={() => handleEditMessage(m)}
                         onForward={() => setForwardingMessage(m)}
                         onDeleteForMe={() => setDeletePrompt({ id: m.id, type: 'me' })}
@@ -767,6 +890,12 @@ export default function ChatPage() {
               <button className="popup-btn popup-btn-danger" onClick={handleSendPoll} disabled={!pollQuestion.trim() || pollOptions.filter(o => o.trim()).length < 2}>Send Poll</button>
             </div>
           </div>
+        </div>
+      )}
+
+      {isOtherUserDND && (
+        <div className="dndWarningBar">
+          🔴 {chat.name} is currently in Do Not Disturb mode. Notifications are muted.
         </div>
       )}
 

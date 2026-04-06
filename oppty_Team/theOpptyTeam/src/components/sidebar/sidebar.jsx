@@ -5,7 +5,6 @@ import { employeeDB } from "../../data/employees";
 import AppLoader from "../common/AppLoader.jsx";
 import "./Sidebar.css";
 
-// Sync local storage to DB so new employees survive page reloads
 try {
   const savedEmps = JSON.parse(localStorage.getItem("opty_employees"));
   if (savedEmps && Array.isArray(savedEmps) && savedEmps.length >= employeeDB.length) {
@@ -30,19 +29,18 @@ function getAuthUser() {
 
 function isLink(text) { return /^https?:\/\//i.test(text || ""); }
 
-// Helper to get initials from name
 function getInitials(name) {
   if (!name) return "U";
   const words = name.trim().split(/\s+/);
-  if (words.length >= 2) {
-    return (words[0][0] + words[words.length - 1][0]).toUpperCase();
-  }
+  if (words.length >= 2) { return (words[0][0] + words[words.length - 1][0]).toUpperCase(); }
   return words[0].substring(0, 2).toUpperCase();
 }
 
 export default function Sidebar({ isChatOpen }) {
   const navigate = useNavigate();
-  const { chats, addContact, addGroup, showToast } = useChats();
+  
+  // NEW: Grab the theme and toggleTheme from Context
+  const { chats, addContact, addGroup, showToast, theme, toggleTheme } = useChats();
 
   const authUser = getAuthUser();
   const isAdminUser = authUser?.role === "admin";
@@ -64,6 +62,7 @@ export default function Sidebar({ isChatOpen }) {
 
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupAbout, setNewGroupAbout] = useState("");
+  const [newGroupIsBroadcast, setNewGroupIsBroadcast] = useState(false); 
 
   const [newEmpName, setNewEmpName] = useState("");
   const [newEmpEmail, setNewEmpEmail] = useState("");
@@ -75,11 +74,13 @@ export default function Sidebar({ isChatOpen }) {
     email: authUser?.email || "yourmail@example.com",
     phone: "+91 9876543210",
     bio: isAdminUser ? "Administrator access enabled." : "Passionate about building beautiful chat experiences.",
-    photo: authUser?.photo || "", // Pull existing photo or default to empty
+    photo: authUser?.photo || "",
+    status: authUser?.status || "available"
   });
 
   const [draftName, setDraftName] = useState(profile.name);
   const [draftPhoto, setDraftPhoto] = useState(profile.photo);
+  const [draftStatus, setDraftStatus] = useState(profile.status);
 
   const popupRef = useRef(null);
   const profileBtnRef = useRef(null);
@@ -98,18 +99,23 @@ export default function Sidebar({ isChatOpen }) {
     if (!current) return;
     const updated = { ...current, ...updatedFields };
     localStorage.setItem("employeeAuth", JSON.stringify(updated));
+    
+    const empIndex = employeeDB.findIndex(e => e.email === current.email);
+    if(empIndex > -1) {
+        employeeDB[empIndex] = { ...employeeDB[empIndex], ...updatedFields };
+        localStorage.setItem("opty_employees", JSON.stringify(employeeDB));
+    }
   };
 
   const handleTogglePopup = () => {
     setShowProfilePopup((prev) => !prev); setShowCreatePopup(false); setActiveDrawer("none");
     setShowLogoutConfirm(false); setIsEditingProfile(false); setIsViewingProfile(false);
-    setDraftName(profile.name); setDraftPhoto(profile.photo);
+    setDraftName(profile.name); setDraftPhoto(profile.photo); setDraftStatus(profile.status);
   };
 
   const handleCloseAll = () => {
     setShowProfilePopup(false); setShowCreatePopup(false); setActiveDrawer("none");
     setShowLogoutConfirm(false); setIsEditingProfile(false); setIsViewingProfile(false);
-    setDraftName(profile.name); setDraftPhoto(profile.photo);
   };
 
   const handleToggleDrawer = (drawerName) => {
@@ -172,8 +178,9 @@ export default function Sidebar({ isChatOpen }) {
     if (!isAdminUser) return;
     const name = newGroupName.trim();
     if (!name) return;
-    addGroup({ name, about: newGroupAbout });
+    addGroup({ name, about: newGroupAbout, isBroadcast: newGroupIsBroadcast }); 
     handleCloseAll(); navigate("/groups");
+    setNewGroupName(""); setNewGroupAbout(""); setNewGroupIsBroadcast(false);
   };
 
   const handleCreateEmployee = () => {
@@ -181,12 +188,8 @@ export default function Sidebar({ isChatOpen }) {
     if (!newEmpName.trim() || !newEmpEmail.trim() || !newEmpPassword.trim()) return;
 
     const newEmp = {
-      id: `emp-${Date.now()}`,
-      name: newEmpName.trim(),
-      email: newEmpEmail.trim(),
-      password: newEmpPassword.trim(),
-      role: "employee",
-      avatarUrl: ""
+      id: `emp-${Date.now()}`, name: newEmpName.trim(), email: newEmpEmail.trim(),
+      password: newEmpPassword.trim(), role: "employee", avatarUrl: "", status: "available"
     };
 
     employeeDB.push(newEmp);
@@ -206,24 +209,20 @@ export default function Sidebar({ isChatOpen }) {
   const handleViewProfile = () => { setIsViewingProfile(true); setIsEditingProfile(false); };
   
   const handleStartEdit = () => { 
-    setIsEditingProfile(true); 
-    setIsViewingProfile(false); 
-    setDraftName(profile.name); 
-    setDraftPhoto(profile.photo); 
+    setIsEditingProfile(true); setIsViewingProfile(false); 
+    setDraftName(profile.name); setDraftPhoto(profile.photo); setDraftStatus(profile.status);
   };
   
   const handleBackToMenu = () => { setIsEditingProfile(false); setIsViewingProfile(false); };
   
   const handleCancelEdit = () => { 
-    setIsEditingProfile(false); 
-    setDraftName(profile.name); 
-    setDraftPhoto(profile.photo); 
+    setIsEditingProfile(false); setDraftName(profile.name); setDraftPhoto(profile.photo); setDraftStatus(profile.status);
   };
   
   const handleSaveProfile = () => {
     const trimmedName = draftName.trim(); if (!trimmedName) return;
-    setProfile({ ...profile, name: trimmedName, photo: draftPhoto });
-    saveAuthUser({ name: trimmedName, photo: draftPhoto });
+    setProfile({ ...profile, name: trimmedName, photo: draftPhoto, status: draftStatus });
+    saveAuthUser({ name: trimmedName, photo: draftPhoto, status: draftStatus });
     setIsEditingProfile(false);
     showToast("Profile updated");
   };
@@ -235,8 +234,7 @@ export default function Sidebar({ isChatOpen }) {
 
   const handlePhotoButtonClick = () => fileInputRef.current?.click();
   const handlePhotoChange = (event) => { 
-    const file = event.target.files?.[0]; 
-    if (!file) return; 
+    const file = event.target.files?.[0]; if (!file) return; 
     setDraftPhoto(URL.createObjectURL(file)); 
   };
 
@@ -326,11 +324,14 @@ export default function Sidebar({ isChatOpen }) {
                       {filteredContacts.length > 0 ? (
                         filteredContacts.map(emp => (
                           <div key={emp.id} className="contact-list-item" onClick={() => handleStartDirectMessage(emp)}>
-                            {emp.avatarUrl ? (
-                              <img src={emp.avatarUrl} alt={emp.name} className="contact-avatar" />
-                            ) : (
-                              <div className="initials-avatar-fallback">{getInitials(emp.name)}</div>
-                            )}
+                            <div style={{position: 'relative'}}>
+                              {emp.avatarUrl ? (
+                                <img src={emp.avatarUrl} alt={emp.name} className="contact-avatar" />
+                              ) : (
+                                <div className="initials-avatar-fallback">{getInitials(emp.name)}</div>
+                              )}
+                              <div className={`statusDot ${emp.status || 'available'}`}></div>
+                            </div>
                             <div className="contact-info">
                               <span className="contact-name">{emp.name}</span>
                               <span className="contact-status">{emp.email}</span>
@@ -358,6 +359,10 @@ export default function Sidebar({ isChatOpen }) {
                       <label className="profile-input-group">
                         <span className="profile-input-label">About Group</span>
                         <input type="text" className="profile-input" value={newGroupAbout} onChange={(e) => setNewGroupAbout(e.target.value)} placeholder="Write something about the group" />
+                      </label>
+                      <label className="pollToggleRow" style={{marginTop: 12}}>
+                        <input type="checkbox" checked={newGroupIsBroadcast} onChange={e => setNewGroupIsBroadcast(e.target.checked)} />
+                        <span>Broadcast Channel (Only admins can post)</span>
                       </label>
                       <div className="profile-popup-actions" style={{marginTop: 20, display: 'flex', justifyContent: 'flex-end', gap: 10}}>
                         <button type="button" className="popup-btn popup-btn-secondary" onClick={() => setCreateMode("contacts")}>Cancel</button>
@@ -401,7 +406,6 @@ export default function Sidebar({ isChatOpen }) {
         <div className="sidebar-bottom">
           <div className="sidebar-profile-wrapper">
             
-            {/* DYNAMIC PROFILE AVATAR BUTTON */}
             <button 
               ref={profileBtnRef} 
               type="button" 
@@ -409,7 +413,8 @@ export default function Sidebar({ isChatOpen }) {
               style={{ 
                 background: profile.photo ? 'transparent' : (isAdminUser ? '#f0f2f5' : '#00a884'), 
                 color: isAdminUser ? 'var(--text)' : '#fff',
-                padding: profile.photo ? 0 : undefined
+                padding: profile.photo ? 0 : undefined,
+                position: 'relative'
               }} 
               title={isAdminUser ? "Admin Profile" : "Profile"} 
               onClick={handleTogglePopup}
@@ -421,6 +426,7 @@ export default function Sidebar({ isChatOpen }) {
               ) : (
                 <span className="sidebar-employee-text">{getInitials(profile.name)}</span>
               )}
+              <div className={`statusDot ${profile.status}`}></div>
             </button>
 
             {showProfilePopup && (
@@ -428,18 +434,25 @@ export default function Sidebar({ isChatOpen }) {
                 {!isEditingProfile && !isViewingProfile && !showLogoutConfirm && (
                   <>
                     <div className="profile-popup-header">
-                      {profile.photo ? (
-                        <img src={profile.photo} alt="User" className="profile-popup-avatar" />
-                      ) : isAdminUser ? (
-                        <div className="profile-popup-admin-avatar">AD</div>
-                      ) : (
-                        <div className="profile-popup-avatar-placeholder">{getInitials(profile.name)}</div>
-                      )}
+                      <div style={{position: 'relative'}}>
+                        {profile.photo ? (
+                          <img src={profile.photo} alt="User" className="profile-popup-avatar" />
+                        ) : isAdminUser ? (
+                          <div className="profile-popup-admin-avatar">AD</div>
+                        ) : (
+                          <div className="profile-popup-avatar-placeholder">{getInitials(profile.name)}</div>
+                        )}
+                        <div className={`statusDot ${profile.status}`}></div>
+                      </div>
                       <div className="profile-popup-user"><h4>{isAdminUser ? `${profile.name} (Admin)` : profile.name}</h4><p>{profile.email}</p></div>
                     </div>
                     <div className="profile-popup-menu">
                       <button type="button" className="profile-menu-btn" onClick={handleViewProfile}>View Profile</button>
                       <button type="button" className="profile-menu-btn" onClick={handleStartEdit}>Edit Profile</button>
+                      {/* NEW: THEME TOGGLE */}
+                      <button type="button" className="profile-menu-btn" onClick={toggleTheme}>
+                        {theme === 'light' ? '🌙 Enable Dark Mode' : '☀️ Enable Light Mode'}
+                      </button>
                       <button type="button" className="profile-menu-btn profile-menu-btn-danger" onClick={() => setShowLogoutConfirm(true)}>Logout</button>
                     </div>
                   </>
@@ -460,18 +473,21 @@ export default function Sidebar({ isChatOpen }) {
                 {isViewingProfile && !showLogoutConfirm && (
                   <>
                     <div className="profile-popup-header">
-                      {profile.photo ? (
-                        <img src={profile.photo} alt="User" className="profile-popup-avatar profile-popup-avatar-large" />
-                      ) : isAdminUser ? (
-                        <div className="profile-popup-admin-avatar profile-popup-admin-avatar-large">AD</div>
-                      ) : (
-                        <div className="profile-popup-avatar-placeholder profile-popup-avatar-large">{getInitials(profile.name)}</div>
-                      )}
+                      <div style={{position: 'relative', margin: '0 auto'}}>
+                        {profile.photo ? (
+                          <img src={profile.photo} alt="User" className="profile-popup-avatar profile-popup-avatar-large" />
+                        ) : isAdminUser ? (
+                          <div className="profile-popup-admin-avatar profile-popup-admin-avatar-large">AD</div>
+                        ) : (
+                          <div className="profile-popup-avatar-placeholder profile-popup-avatar-large">{getInitials(profile.name)}</div>
+                        )}
+                        <div className={`statusDot ${profile.status}`} style={{width: 20, height: 20, bottom: 20, right: 10}}></div>
+                      </div>
                       <div className="profile-popup-user"><h4>{isAdminUser ? `${profile.name} (Admin)` : profile.name}</h4><p>{profile.email}</p></div>
                     </div>
                     <div className="profile-view-details">
+                      <div className="profile-detail-card"><span className="profile-detail-label">Status</span><span className="profile-detail-value">{profile.status === 'dnd' ? '🔴 Do Not Disturb' : profile.status === 'meeting' ? '🗓️ In a Meeting' : '🟢 Available'}</span></div>
                       <div className="profile-detail-card"><span className="profile-detail-label">Phone</span><span className="profile-detail-value">{profile.phone}</span></div>
-                      <div className="profile-detail-card"><span className="profile-detail-label">Bio</span><span className="profile-detail-value">{profile.bio}</span></div>
                     </div>
                     <div className="profile-popup-actions">
                       <button type="button" className="popup-btn popup-btn-secondary" onClick={handleBackToMenu}>Back</button>
@@ -483,13 +499,15 @@ export default function Sidebar({ isChatOpen }) {
                 {isEditingProfile && !showLogoutConfirm && (
                   <>
                     <div className="profile-popup-header">
-                      {draftPhoto ? (
-                        <img src={draftPhoto} alt="Preview" className="profile-popup-avatar" />
-                      ) : isAdminUser ? (
-                        <div className="profile-popup-admin-avatar">AD</div>
-                      ) : (
-                        <div className="profile-popup-avatar-placeholder">{getInitials(draftName)}</div>
-                      )}
+                      <div style={{position: 'relative', margin: '0 auto'}}>
+                        {draftPhoto ? (
+                          <img src={draftPhoto} alt="Preview" className="profile-popup-avatar" />
+                        ) : isAdminUser ? (
+                          <div className="profile-popup-admin-avatar">AD</div>
+                        ) : (
+                          <div className="profile-popup-avatar-placeholder">{getInitials(draftName)}</div>
+                        )}
+                      </div>
                       <div className="profile-popup-user"><h4>Edit Profile</h4><p>Update your details</p></div>
                     </div>
                     <div className="profile-edit-form">
@@ -498,10 +516,19 @@ export default function Sidebar({ isChatOpen }) {
                         <input type="text" className="profile-input" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Enter your name" />
                       </label>
                       
+                      <label className="profile-input-group">
+                        <span className="profile-input-label">Current Status</span>
+                        <select className="profile-input" value={draftStatus} onChange={(e) => setDraftStatus(e.target.value)}>
+                          <option value="available">🟢 Available</option>
+                          <option value="dnd">🔴 Coding - Do Not Disturb</option>
+                          <option value="meeting">🗓️ In a Meeting</option>
+                        </select>
+                      </label>
+
                       <div className="profile-input-group">
                         <span className="profile-input-label">Photo</span>
                         <div className="profile-edit-actions" style={{display: 'flex', gap: '8px'}}>
-                          <button type="button" className="popup-btn popup-btn-secondary" onClick={handlePhotoButtonClick}>Choose Photo</button>
+                          <button type="button" className="popup-btn popup-btn-secondary" onClick={handlePhotoButtonClick}>Choose</button>
                           {draftPhoto && (
                             <button type="button" className="popup-btn popup-btn-secondary" style={{color: '#d93025'}} onClick={() => setDraftPhoto("")}>Remove</button>
                           )}
