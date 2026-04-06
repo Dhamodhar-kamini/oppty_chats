@@ -21,10 +21,8 @@ function formatDay(ts) {
   const today = new Date();
   const yesterday = new Date();
   yesterday.setDate(today.getDate() - 1);
-
   if (date.toDateString() === today.toDateString()) return "Today";
   if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
-  
   return date.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
 }
 
@@ -46,7 +44,7 @@ export default function ChatPage() {
   const {
     chats, getChatById, sendMessage, sendAttachment, sendPoll, votePoll, editMessage, toggleReaction, toggleStar, togglePin,
     updateChatName, updateGroupAbout, deleteChat, toggleBlockChat, addGroupMember, removeGroupMember,
-    promoteAdmin, demoteAdmin, leaveGroup, deleteMessageForMe, deleteMessageForAll, setDisappearingMode, isAdmin, isLoading, showToast
+    promoteAdmin, demoteAdmin, leaveGroup, deleteMessageForMe, deleteMessageForAll, setDisappearingMode, toggleBroadcastMode, addContact, isAdmin, isLoading, showToast
   } = useChats();
 
   const chat = chatId ? getChatById(chatId) : null;
@@ -59,6 +57,9 @@ export default function ChatPage() {
   }, [chat, authUser]);
 
   const canEditGroupInfo = chat?.kind === "group" ? (isAdmin || isGroupAdmin) : true;
+  
+  const isBroadcast = chat?.isBroadcast === true;
+  const canPost = !chat?.hasLeft && (!isBroadcast || isGroupAdmin || isAdmin);
 
   const [drafts, setDrafts] = useState({});
   const text = drafts[chatId] || "";
@@ -120,7 +121,6 @@ export default function ChatPage() {
   const stickerMenuRef = useRef(null);
   const attachBtnRef = useRef(null);
   const stickerBtnRef = useRef(null);
-
   const imageInputRef = useRef(null);
   const documentInputRef = useRef(null);
 
@@ -204,10 +204,9 @@ export default function ChatPage() {
   const docItems = uploadedDocItems;
   const totalSharedCount = mediaItems.length + docItems.length + linkItems.length;
 
-  // --- NEW: CALCULATE GROUPS IN COMMON ---
   const commonGroups = useMemo(() => {
     if (!chat || chat.kind !== "dm") return [];
-    const targetEmail = chat.contact; // In Context, DM contact is resolved to the other user's email
+    const targetEmail = chat.contact;
     if (!targetEmail || targetEmail === "Not available") return [];
     
     return chats.filter(c => {
@@ -215,6 +214,21 @@ export default function ChatPage() {
       return c.members?.some(m => m.email === targetEmail);
     });
   }, [chat, chats]);
+
+  const handleStartDirectMessage = (empEmail) => {
+    if (empEmail === authUser?.email) return; 
+    const emp = employeeDB.find(e => e.email === empEmail);
+    if (!emp) return;
+
+    const existingChat = chats.find(c => c.kind === "dm" && c.participants?.includes(emp.email));
+    if (existingChat) {
+      handleCloseChatInfo(); navigate(`/chats/${existingChat.id}`);
+    } else {
+      const newChatId = `dm_${Date.now()}`;
+      addContact({ id: newChatId, name: emp.name, contact: emp.email, avatarUrl: emp.avatarUrl, about: emp.role === "admin" ? "Admin Account" : "Available for chat" });
+      handleCloseChatInfo(); navigate(`/chats/${newChatId}`);
+    }
+  };
 
   useEffect(() => {
     setReplyingTo(null); setEditingMessage(null); setSelectionMode(false); setSelectedMessages([]);
@@ -247,6 +261,18 @@ export default function ChatPage() {
     document.addEventListener("mousedown", handleClickOutside); document.addEventListener("keydown", handleEscape);
     return () => { document.removeEventListener("mousedown", handleClickOutside); document.removeEventListener("keydown", handleEscape); };
   }, [searchOpen, showAttachMenu, showStickerMenu, selectionMode, mentionState.active]);
+
+  useEffect(() => {
+    if (!matchedMessages.length) { setActiveSearchIndex(0); return; }
+    if (activeSearchIndex >= matchedMessages.length) setActiveSearchIndex(0);
+  }, [matchedMessages, activeSearchIndex]);
+
+  useEffect(() => {
+    if (!matchedMessages.length) return;
+    const currentMatch = matchedMessages[activeSearchIndex];
+    const node = messageRefs.current[currentMatch.id];
+    if (node) node.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [activeSearchIndex, matchedMessages]);
 
   if (!chat) {
     return (
@@ -297,7 +323,7 @@ export default function ChatPage() {
   };
 
   const onSend = () => {
-    const v = text.trim(); if (!v || chat.blocked || chat.hasLeft) return;
+    const v = text.trim(); if (!v || chat.blocked || !canPost) return;
     if (editingMessage) { editMessage(chat.id, editingMessage.id, v); setEditingMessage(null); } 
     else { sendMessage(chat.id, v, replyingTo); }
     setText(""); setReplyingTo(null); setShowAttachMenu(false); setShowStickerMenu(false);
@@ -305,26 +331,26 @@ export default function ChatPage() {
   };
 
   const handleAttachmentAction = (type) => {
-    if (chat.blocked || chat.hasLeft) return;
+    if (chat.blocked || !canPost) return;
     if (type === "image") imageInputRef.current?.click();
     else if (type === "document") documentInputRef.current?.click();
     else if (type === "contact") { setText((prev) => `${prev}${prev ? " " : ""}[Shared Contact]`); setShowAttachMenu(false); }
   };
 
   const handleImageSelected = (e) => {
-    const file = e.target.files?.[0]; if (!file || chat.blocked || chat.hasLeft) return;
+    const file = e.target.files?.[0]; if (!file || chat.blocked || !canPost) return;
     sendAttachment(chat.id, "image", URL.createObjectURL(file), file.name, replyingTo);
     setReplyingTo(null); setShowAttachMenu(false); e.target.value = "";
   };
 
   const handleDocumentSelected = (e) => {
-    const file = e.target.files?.[0]; if (!file || chat.blocked || chat.hasLeft) return;
+    const file = e.target.files?.[0]; if (!file || chat.blocked || !canPost) return;
     sendAttachment(chat.id, "document", URL.createObjectURL(file), file.name, replyingTo);
     setReplyingTo(null); setShowAttachMenu(false); e.target.value = "";
   };
 
   const handleStickerSelect = (sticker) => {
-    if (chat.blocked || chat.hasLeft) return;
+    if (chat.blocked || !canPost) return;
     setText((prev) => `${prev}${prev ? " " : ""}${sticker}`); setShowStickerMenu(false);
   };
 
@@ -415,9 +441,13 @@ export default function ChatPage() {
           <>
             {!isDesktop && <button className="iconBtn" onClick={() => navigate("..", { relative: "path" })} aria-label="Back">←</button>}
             <button type="button" className="chatProfileTrigger" onClick={handleOpenChatInfo} aria-label="Open profile info" title="View profile"><img className="avatar" src={chat.avatarUrl} alt={chat.name} /></button>
+            
             <button type="button" className="chatHeaderIdentity" onClick={handleOpenChatInfo} aria-label="Open profile information" title="View profile">
               <div className="chatHeaderText">
-                <div className="chatHeaderName">{chat.name}</div>
+                <div className="chatHeaderName">
+                  {chat.name} 
+                  {chat.isBroadcast && <span className="broadcastBadge">📢 Announcement</span>}
+                </div>
                 <div className="chatHeaderMeta">
                   {isTyping ? (<span className="typingIndicator">{chat.kind === 'group' ? "Someone is typing..." : "typing..."}</span>) : chat.kind === "group" ? (`${memberCount} member${memberCount !== 1 ? "s" : ""}`) : chat.blocked ? ("blocked") : chat.isOnline ? ("online") : chat.lastSeen ? (chat.lastSeen) : ("offline")}
                 </div>
@@ -521,7 +551,6 @@ export default function ChatPage() {
                   <div className="chatInfoCardRow"><span className="chatInfoLabel">Phone / Email</span><strong className="chatInfoValue">{chat.contact || chat.email || "Not available"}</strong></div>
                   <div className="groupInfoSectionCard mediaLinksDocsCard" onClick={() => setShowMediaPanel(true)} role="button" tabIndex={0}><div className="groupInfoSectionTop"><div className="groupInfoSectionTitle">Media, links and docs</div><div className="groupInfoSectionCount">{totalSharedCount}</div></div><div className="groupMediaPreviewRow">{mediaItems.slice(0, 2).map((item) => (<button key={item.id} type="button" className="groupMediaPreviewItem" onClick={(e) => { e.stopPropagation(); if (item.fileUrl && item.fileUrl !== "#") setPreviewMedia(item.fileUrl); }}><img src={item.fileUrl} alt={item.fileName} /></button>))}</div></div>
                   
-                  {/* GROUPS IN COMMON SECTION (Added Here) */}
                   {commonGroups.length > 0 && (
                     <div className="groupInfoSectionCard mediaLinksDocsCard">
                       <div className="groupInfoSectionTop" style={{marginBottom: 8}}>
@@ -568,12 +597,41 @@ export default function ChatPage() {
               <>
                 <div className="groupInfoSectionCard mediaLinksDocsCard" onClick={() => setShowMediaPanel(true)} role="button" tabIndex={0}><div className="groupInfoSectionTop"><div className="groupInfoSectionTitle">Media, links and docs</div><div className="groupInfoSectionCount">{totalSharedCount}</div></div><div className="groupMediaPreviewRow">{mediaItems.slice(0, 2).length ? (mediaItems.slice(0, 2).map((item) => (<button key={item.id} type="button" className="groupMediaPreviewItem" onClick={(e) => { e.stopPropagation(); if (item.fileUrl && item.fileUrl !== "#") setPreviewMedia(item.fileUrl); }}><img src={item.fileUrl} alt={item.fileName} /></button>))) : ( <div className="muted">No media, docs or links shared yet.</div> )}</div></div>
                 
+                {/* --- RESTRICTED TO ADMINS ONLY --- */}
+                {canEditGroupInfo && (
+                  <div className="groupInfoSectionCard">
+                    <div className="groupInfoSectionTop" style={{marginBottom: 8}}>
+                      <div className="groupInfoSectionTitle">Broadcast Channel</div>
+                    </div>
+                    <div className="disappearingSettings">
+                      <label className="pollToggleRow" style={{marginTop: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px'}}>
+                        <input 
+                          type="checkbox" 
+                          checked={chat.isBroadcast || false} 
+                          onChange={() => { 
+                            toggleBroadcastMode(chat.id); 
+                            showToast(chat.isBroadcast ? "Broadcast mode disabled" : "Broadcast mode enabled"); 
+                          }} 
+                          style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                        />
+                        <span style={{ fontSize: '14px', fontWeight: 500 }}>Only admins can send messages</span>
+                      </label>
+                    </div>
+                  </div>
+                )}
+
                 <div className="groupInfoSectionCard">
                   <div className="groupInfoSectionTop" style={{marginBottom: 8}}><div className="groupInfoSectionTitle">Disappearing messages</div></div>
                   <div className="disappearingSettings">
-                    <select className="chatSearchFilterSelect" style={{ width: '100%', marginBottom: 6 }} value={chat.disappearingMode || "off"} onChange={(e) => { setDisappearingMode(chat.id, e.target.value); showToast("Disappearing messages updated"); }}>
-                      <option value="off">Off</option><option value="24h">24 hours</option><option value="7d">7 days</option><option value="90d">90 days</option>
-                    </select>
+                    {canEditGroupInfo ? (
+                      <select className="chatSearchFilterSelect" style={{ width: '100%', marginBottom: 6 }} value={chat.disappearingMode || "off"} onChange={(e) => { setDisappearingMode(chat.id, e.target.value); showToast("Disappearing messages updated"); }}>
+                        <option value="off">Off</option><option value="24h">24 hours</option><option value="7d">7 days</option><option value="90d">90 days</option>
+                      </select>
+                    ) : (
+                      <div style={{ marginBottom: 6, fontWeight: 500, color: 'var(--text)' }}>
+                        {chat.disappearingMode === "off" ? "Off" : chat.disappearingMode === "24h" ? "24 hours" : chat.disappearingMode === "7d" ? "7 days" : "90 days"}
+                      </div>
+                    )}
                     <div className="muted" style={{ fontSize: 13, lineHeight: 1.4 }}>Make messages in this chat disappear after the selected time. Pinned messages will be kept.</div>
                   </div>
                 </div>
@@ -593,12 +651,17 @@ export default function ChatPage() {
                   <div className="groupMembersListWhatsapp">
                     {filteredGroupMembers.length ? (
                       filteredGroupMembers.map((member) => (
-                        <div key={member.id} className="groupMemberWhatsappItem">
+                        <div 
+                          key={member.id} 
+                          className="groupMemberWhatsappItem" 
+                          onClick={() => handleStartDirectMessage(member.email)}
+                          style={{ cursor: member.email !== authUser?.email ? 'pointer' : 'default' }}
+                        >
                           <div className="groupMemberInfoWrap">
                             <img src={member.avatarUrl || "https://i.pravatar.cc/100"} alt={member.name} className="groupMemberAvatar" />
                             <div className="groupMemberInfo"><div style={{display: 'flex', alignItems: 'center'}}><strong>{member.name}</strong>{member.isAdmin && <span className="groupAdminBadge">Admin</span>}</div><span>{member.email}</span></div>
                           </div>
-                          <div className="groupMemberRightMeta" style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'flex-end', marginLeft: '12px' }}>
+                          <div className="groupMemberRightMeta" onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'flex-end', marginLeft: '12px' }}>
                             {canEditGroupInfo && member.email !== authUser?.email && !member.isAdmin && <button type="button" className="groupMemberActionBtn" onClick={() => handlePromoteAdmin(member.id)}>Make Admin</button>}
                             {canEditGroupInfo && member.email !== authUser?.email && member.isAdmin && <button type="button" className="groupMemberActionBtn" onClick={() => handleDemoteAdmin(member.id)}>Dismiss Admin</button>}
                             {canEditGroupInfo && member.email !== authUser?.email && <button type="button" className="groupMemberRemoveBtn" onClick={() => handleRemoveMember(member.id)}>Remove</button>}
@@ -709,6 +772,8 @@ export default function ChatPage() {
 
       {chat.hasLeft ? (
         <footer className="composer composerDisabled animatedFadeIn">You can't send messages to this group because you're no longer a participant.</footer>
+      ) : chat.kind === "group" && chat.isBroadcast && !canEditGroupInfo ? (
+        <footer className="composer composerDisabled animatedFadeIn" style={{justifyContent: 'center', color: 'var(--muted)', fontWeight: 500}}>Only admins can send messages.</footer>
       ) : (
         <footer className="composer">
           {replyingTo && (
@@ -739,7 +804,7 @@ export default function ChatPage() {
               </div>
             )}
             <div className="composer-action-wrapper">
-              <button ref={attachBtnRef} type="button" className="composerActionBtn" onClick={() => { setShowAttachMenu((prev) => !prev); setShowStickerMenu(false); }} title="Attach" disabled={chat.blocked}>+</button>
+              <button ref={attachBtnRef} type="button" className="composerActionBtn" onClick={() => { setShowAttachMenu((prev) => !prev); setShowStickerMenu(false); }} title="Attach" disabled={chat.blocked || !canPost}>+</button>
               {showAttachMenu && (
                 <div ref={attachMenuRef} className="waAttachMenu">
                   <button type="button" className="waAttachMenuItem" onClick={() => handleAttachmentAction("document")}>
@@ -761,7 +826,7 @@ export default function ChatPage() {
             </div>
 
             <div className="composer-action-wrapper">
-              <button ref={stickerBtnRef} type="button" className="composerActionBtn" onClick={() => { setShowStickerMenu((prev) => !prev); setShowAttachMenu(false); }} title="Stickers" disabled={chat.blocked}>☺</button>
+              <button ref={stickerBtnRef} type="button" className="composerActionBtn" onClick={() => { setShowStickerMenu((prev) => !prev); setShowAttachMenu(false); }} title="Stickers" disabled={chat.blocked || !canPost}>☺</button>
               {showStickerMenu && (
                 <div ref={stickerMenuRef} className="composerPopupMenu stickerMenu">
                   <div className="stickerGrid">{stickerOptions.map((sticker, index) => (<button key={`${sticker}-${index}`} type="button" className="stickerBtn" onClick={() => handleStickerSelect(sticker)}>{sticker}</button>))}</div>
@@ -772,13 +837,14 @@ export default function ChatPage() {
             <input ref={documentInputRef} type="file" className="hiddenFileInput" onChange={handleDocumentSelected} />
           </div>
 
-          <textarea ref={composerInputRef} className="composerInput" value={text} onChange={handleTextInput} placeholder={chat.blocked ? "This chat is blocked" : editingMessage ? "Edit message" : "Type a message"} rows={1} disabled={chat.blocked} onKeyDown={handleKeyDown} />
-          <button type="button" className="sendBtn" onClick={onSend} aria-label="Send" title="Send" disabled={!canSend || chat.blocked}>
+          <textarea ref={composerInputRef} className="composerInput" value={text} onChange={handleTextInput} placeholder={chat.blocked ? "This chat is blocked" : editingMessage ? "Edit message" : "Type a message"} rows={1} disabled={chat.blocked || !canPost} onKeyDown={handleKeyDown} />
+          <button type="button" className="sendBtn" onClick={onSend} aria-label="Send" title="Send" disabled={!canSend || chat.blocked || !canPost}>
             <svg className="sendIcon" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
           </button>
         </footer>
       )}
 
+      {/* Shared Media/Links/Docs Overlays... */}
       {showMediaPanel && (
         <div className="mediaSharedOverlay animatedFadeIn">
           <div className="mediaSharedPanel">

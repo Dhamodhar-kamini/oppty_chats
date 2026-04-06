@@ -30,7 +30,7 @@ function getAuthUser() {
 
 function isLink(text) { return /^https?:\/\//i.test(text || ""); }
 
-// Helper to get initials from name (e.g., "Jason Doe" -> "JD", "Jason" -> "J")
+// Helper to get initials from name
 function getInitials(name) {
   if (!name) return "U";
   const words = name.trim().split(/\s+/);
@@ -75,12 +75,15 @@ export default function Sidebar({ isChatOpen }) {
     email: authUser?.email || "yourmail@example.com",
     phone: "+91 9876543210",
     bio: isAdminUser ? "Administrator access enabled." : "Passionate about building beautiful chat experiences.",
+    photo: authUser?.photo || "", // Pull existing photo or default to empty
   });
 
   const [draftName, setDraftName] = useState(profile.name);
+  const [draftPhoto, setDraftPhoto] = useState(profile.photo);
 
   const popupRef = useRef(null);
   const profileBtnRef = useRef(null);
+  const fileInputRef = useRef(null);
   const createPopupRef = useRef(null);
   const createBtnRef = useRef(null);
   const drawerRef = useRef(null);
@@ -100,13 +103,13 @@ export default function Sidebar({ isChatOpen }) {
   const handleTogglePopup = () => {
     setShowProfilePopup((prev) => !prev); setShowCreatePopup(false); setActiveDrawer("none");
     setShowLogoutConfirm(false); setIsEditingProfile(false); setIsViewingProfile(false);
-    setDraftName(profile.name);
+    setDraftName(profile.name); setDraftPhoto(profile.photo);
   };
 
   const handleCloseAll = () => {
     setShowProfilePopup(false); setShowCreatePopup(false); setActiveDrawer("none");
     setShowLogoutConfirm(false); setIsEditingProfile(false); setIsViewingProfile(false);
-    setDraftName(profile.name);
+    setDraftName(profile.name); setDraftPhoto(profile.photo);
   };
 
   const handleToggleDrawer = (drawerName) => {
@@ -183,7 +186,7 @@ export default function Sidebar({ isChatOpen }) {
       email: newEmpEmail.trim(),
       password: newEmpPassword.trim(),
       role: "employee",
-      avatarUrl: `https://i.pravatar.cc/100?u=${encodeURIComponent(newEmpEmail.trim())}`
+      avatarUrl: ""
     };
 
     employeeDB.push(newEmp);
@@ -201,19 +204,40 @@ export default function Sidebar({ isChatOpen }) {
   };
 
   const handleViewProfile = () => { setIsViewingProfile(true); setIsEditingProfile(false); };
-  const handleStartEdit = () => { setIsEditingProfile(true); setIsViewingProfile(false); setDraftName(profile.name); };
+  
+  const handleStartEdit = () => { 
+    setIsEditingProfile(true); 
+    setIsViewingProfile(false); 
+    setDraftName(profile.name); 
+    setDraftPhoto(profile.photo); 
+  };
+  
   const handleBackToMenu = () => { setIsEditingProfile(false); setIsViewingProfile(false); };
-  const handleCancelEdit = () => { setIsEditingProfile(false); setDraftName(profile.name); };
+  
+  const handleCancelEdit = () => { 
+    setIsEditingProfile(false); 
+    setDraftName(profile.name); 
+    setDraftPhoto(profile.photo); 
+  };
+  
   const handleSaveProfile = () => {
     const trimmedName = draftName.trim(); if (!trimmedName) return;
-    setProfile({ ...profile, name: trimmedName });
-    saveAuthUser({ name: trimmedName });
+    setProfile({ ...profile, name: trimmedName, photo: draftPhoto });
+    saveAuthUser({ name: trimmedName, photo: draftPhoto });
     setIsEditingProfile(false);
+    showToast("Profile updated");
   };
 
   const handleConfirmLogout = () => {
     setIsLoggingOut(true); handleCloseAll();
     setTimeout(() => { localStorage.removeItem("employeeAuth"); window.location.href = "/login"; }, 1600);
+  };
+
+  const handlePhotoButtonClick = () => fileInputRef.current?.click();
+  const handlePhotoChange = (event) => { 
+    const file = event.target.files?.[0]; 
+    if (!file) return; 
+    setDraftPhoto(URL.createObjectURL(file)); 
   };
 
   useEffect(() => {
@@ -302,14 +326,11 @@ export default function Sidebar({ isChatOpen }) {
                       {filteredContacts.length > 0 ? (
                         filteredContacts.map(emp => (
                           <div key={emp.id} className="contact-list-item" onClick={() => handleStartDirectMessage(emp)}>
-                            {/* Dynamically fallback to initials if avatarUrl fails or missing */}
-                            <img 
-                              src={emp.avatarUrl} 
-                              alt={emp.name} 
-                              className="contact-avatar" 
-                              onError={(e) => { e.target.style.display='none'; e.target.nextSibling.style.display='grid'; }} 
-                            />
-                            <div className="initials-avatar-fallback" style={{display: 'none'}}>{getInitials(emp.name)}</div>
+                            {emp.avatarUrl ? (
+                              <img src={emp.avatarUrl} alt={emp.name} className="contact-avatar" />
+                            ) : (
+                              <div className="initials-avatar-fallback">{getInitials(emp.name)}</div>
+                            )}
                             <div className="contact-info">
                               <span className="contact-name">{emp.name}</span>
                               <span className="contact-status">{emp.email}</span>
@@ -380,9 +401,26 @@ export default function Sidebar({ isChatOpen }) {
         <div className="sidebar-bottom">
           <div className="sidebar-profile-wrapper">
             
-            {/* DYNAMIC TEXT PROFILE BUTTON */}
-            <button ref={profileBtnRef} type="button" className="sidebar-profile" style={{ background: isAdminUser ? '#f0f2f5' : '#00a884', color: isAdminUser ? 'var(--text)' : '#fff' }} title={isAdminUser ? "Admin Profile" : "Profile"} onClick={handleTogglePopup}>
-              {isAdminUser ? <span className="sidebar-admin-text">AD</span> : <span className="sidebar-employee-text">{getInitials(profile.name)}</span>}
+            {/* DYNAMIC PROFILE AVATAR BUTTON */}
+            <button 
+              ref={profileBtnRef} 
+              type="button" 
+              className={`sidebar-profile ${!profile.photo && isAdminUser ? "sidebar-admin-badge" : ""}`} 
+              style={{ 
+                background: profile.photo ? 'transparent' : (isAdminUser ? '#f0f2f5' : '#00a884'), 
+                color: isAdminUser ? 'var(--text)' : '#fff',
+                padding: profile.photo ? 0 : undefined
+              }} 
+              title={isAdminUser ? "Admin Profile" : "Profile"} 
+              onClick={handleTogglePopup}
+            >
+              {profile.photo ? (
+                <img src={profile.photo} alt="User" className="sidebar-profile-img" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+              ) : isAdminUser ? (
+                <span className="sidebar-admin-text">AD</span>
+              ) : (
+                <span className="sidebar-employee-text">{getInitials(profile.name)}</span>
+              )}
             </button>
 
             {showProfilePopup && (
@@ -390,12 +428,18 @@ export default function Sidebar({ isChatOpen }) {
                 {!isEditingProfile && !isViewingProfile && !showLogoutConfirm && (
                   <>
                     <div className="profile-popup-header">
-                      {isAdminUser ? <div className="profile-popup-admin-avatar">AD</div> : <div className="profile-popup-avatar-placeholder">{getInitials(profile.name)}</div>}
+                      {profile.photo ? (
+                        <img src={profile.photo} alt="User" className="profile-popup-avatar" />
+                      ) : isAdminUser ? (
+                        <div className="profile-popup-admin-avatar">AD</div>
+                      ) : (
+                        <div className="profile-popup-avatar-placeholder">{getInitials(profile.name)}</div>
+                      )}
                       <div className="profile-popup-user"><h4>{isAdminUser ? `${profile.name} (Admin)` : profile.name}</h4><p>{profile.email}</p></div>
                     </div>
                     <div className="profile-popup-menu">
                       <button type="button" className="profile-menu-btn" onClick={handleViewProfile}>View Profile</button>
-                      <button type="button" className="profile-menu-btn" onClick={handleStartEdit}>Edit Name</button>
+                      <button type="button" className="profile-menu-btn" onClick={handleStartEdit}>Edit Profile</button>
                       <button type="button" className="profile-menu-btn profile-menu-btn-danger" onClick={() => setShowLogoutConfirm(true)}>Logout</button>
                     </div>
                   </>
@@ -416,7 +460,13 @@ export default function Sidebar({ isChatOpen }) {
                 {isViewingProfile && !showLogoutConfirm && (
                   <>
                     <div className="profile-popup-header">
-                      {isAdminUser ? <div className="profile-popup-admin-avatar profile-popup-admin-avatar-large">AD</div> : <div className="profile-popup-avatar-placeholder profile-popup-avatar-large">{getInitials(profile.name)}</div>}
+                      {profile.photo ? (
+                        <img src={profile.photo} alt="User" className="profile-popup-avatar profile-popup-avatar-large" />
+                      ) : isAdminUser ? (
+                        <div className="profile-popup-admin-avatar profile-popup-admin-avatar-large">AD</div>
+                      ) : (
+                        <div className="profile-popup-avatar-placeholder profile-popup-avatar-large">{getInitials(profile.name)}</div>
+                      )}
                       <div className="profile-popup-user"><h4>{isAdminUser ? `${profile.name} (Admin)` : profile.name}</h4><p>{profile.email}</p></div>
                     </div>
                     <div className="profile-view-details">
@@ -433,15 +483,33 @@ export default function Sidebar({ isChatOpen }) {
                 {isEditingProfile && !showLogoutConfirm && (
                   <>
                     <div className="profile-popup-header">
-                      {isAdminUser ? <div className="profile-popup-admin-avatar">AD</div> : <div className="profile-popup-avatar-placeholder">{getInitials(draftName)}</div>}
-                      <div className="profile-popup-user"><h4>Edit Profile</h4><p>Update your name</p></div>
+                      {draftPhoto ? (
+                        <img src={draftPhoto} alt="Preview" className="profile-popup-avatar" />
+                      ) : isAdminUser ? (
+                        <div className="profile-popup-admin-avatar">AD</div>
+                      ) : (
+                        <div className="profile-popup-avatar-placeholder">{getInitials(draftName)}</div>
+                      )}
+                      <div className="profile-popup-user"><h4>Edit Profile</h4><p>Update your details</p></div>
                     </div>
                     <div className="profile-edit-form">
                       <label className="profile-input-group">
                         <span className="profile-input-label">Name</span>
                         <input type="text" className="profile-input" value={draftName} onChange={(e) => setDraftName(e.target.value)} placeholder="Enter your name" />
                       </label>
-                      <div className="profile-popup-actions">
+                      
+                      <div className="profile-input-group">
+                        <span className="profile-input-label">Photo</span>
+                        <div className="profile-edit-actions" style={{display: 'flex', gap: '8px'}}>
+                          <button type="button" className="popup-btn popup-btn-secondary" onClick={handlePhotoButtonClick}>Choose Photo</button>
+                          {draftPhoto && (
+                            <button type="button" className="popup-btn popup-btn-secondary" style={{color: '#d93025'}} onClick={() => setDraftPhoto("")}>Remove</button>
+                          )}
+                          <input ref={fileInputRef} type="file" accept="image/*" className="profile-file-input" style={{display: 'none'}} onChange={handlePhotoChange} />
+                        </div>
+                      </div>
+
+                      <div className="profile-popup-actions" style={{marginTop: 16}}>
                         <button type="button" className="popup-btn popup-btn-secondary" onClick={handleCancelEdit}>Cancel</button>
                         <button type="button" className="popup-btn popup-btn-danger" onClick={handleSaveProfile} disabled={!draftName.trim()}>Save</button>
                       </div>
@@ -454,7 +522,7 @@ export default function Sidebar({ isChatOpen }) {
         </div>
       </aside>
 
-      {/* FLYOUT DRAWERS (Search / Starred) */}
+      {/* FLYOUT DRAWERS */}
       {activeDrawer !== "none" && (
         <div className="sidebar-flyout-drawer" ref={drawerRef}>
           <div className="flyout-header">

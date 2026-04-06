@@ -50,6 +50,7 @@ const seed = [
     blocked: false,
     hasLeft: false,
     disappearingMode: "off",
+    isBroadcast: false,
     members: [
       { id: "emp-1", name: "Employee One", email: "employee@oppty.com", avatarUrl: "https://i.pravatar.cc/100?img=11", isAdmin: false },
       { id: "emp-3", name: "Dhamu", email: "dhamu@oppty.com", avatarUrl: "https://i.pravatar.cc/100?img=21", isAdmin: true },
@@ -86,7 +87,7 @@ function normalizeAndMerge(persisted) {
 
     return {
       ...c, kind: c.kind ?? "dm", about: c.about ?? "Hey there! I am using Oppty Chats.", contact: c.contact ?? "Not available", isAdmin: c.isAdmin ?? false, blocked: c.blocked ?? false, hasLeft: c.hasLeft ?? false,
-      disappearingMode, participants: Array.isArray(c.participants) ? c.participants : [], members: Array.isArray(c.members) ? c.members.map(m => ({ ...m, isAdmin: m.isAdmin ?? false })) : [], messages: activeMessages
+      disappearingMode, isBroadcast: c.isBroadcast ?? false, participants: Array.isArray(c.participants) ? c.participants : [], members: Array.isArray(c.members) ? c.members.map(m => ({ ...m, isAdmin: m.isAdmin ?? false })) : [], messages: activeMessages
     };
   });
 
@@ -127,6 +128,16 @@ function reducer(state, action) {
         if (c.id !== action.chatId) return c;
         const text = action.mode === "off" ? "You turned off disappearing messages." : `You turned on disappearing messages. New messages will disappear from this chat after ${action.mode === '24h' ? '24 hours' : action.mode === '7d' ? '7 days' : '90 days'}.`;
         return { ...c, disappearingMode: action.mode, messages: [...c.messages, createSystemMessage(c.id, text)] };
+      });
+      saveChats(chats); return { chats };
+    }
+
+    case "TOGGLE_BROADCAST_MODE": {
+      const chats = state.chats.map(c => {
+        if (c.id !== action.chatId || c.kind !== "group") return c;
+        const newMode = !c.isBroadcast;
+        const text = newMode ? "This group is now a broadcast channel. Only admins can send messages." : "This group is no longer a broadcast channel. All members can send messages.";
+        return { ...c, isBroadcast: newMode, messages: [...c.messages, createSystemMessage(c.id, text)] };
       });
       saveChats(chats); return { chats };
     }
@@ -221,7 +232,7 @@ function reducer(state, action) {
     case "ADD_CONTACT": {
       const name = action.payload.name.trim(); if (!name) return state;
       const targetEmail = action.payload.contact?.trim();
-      const newChat = { id: action.payload.id || uid(), kind: "dm", name, avatarUrl: action.payload.avatarUrl || `https://i.pravatar.cc/100?u=${encodeURIComponent(name + Date.now())}`, isOnline: true, lastSeen: "online", about: action.payload.about || "Hey there! I am using Oppty Chats.", contact: targetEmail || "Not available", blocked: false, hasLeft: false, disappearingMode: "off", participants: targetEmail ? [currentEmail, targetEmail] : [currentEmail], messages: [], };
+      const newChat = { id: action.payload.id || uid(), kind: "dm", name, avatarUrl: action.payload.avatarUrl || `https://i.pravatar.cc/100?u=${encodeURIComponent(name + Date.now())}`, isOnline: true, lastSeen: "online", about: action.payload.about || "Hey there! I am using Oppty Chats.", contact: targetEmail || "Not available", blocked: false, hasLeft: false, disappearingMode: "off", isBroadcast: false, participants: targetEmail ? [currentEmail, targetEmail] : [currentEmail], messages: [], };
       const chats = [newChat, ...state.chats];
       saveChats(chats); return { chats };
     }
@@ -230,7 +241,14 @@ function reducer(state, action) {
       const name = action.payload.name.trim(); if (!name) return state;
       const sysMsg = createSystemMessage(uid(), "You created this group");
       const adminMember = { id: currentUser?.id || uid(), name: currentUser?.name || "You", email: currentEmail, avatarUrl: currentUser?.avatarUrl, isAdmin: true };
-      const newGroup = { id: sysMsg.chatId, kind: "group", name, avatarUrl: action.payload.avatarUrl || `https://i.pravatar.cc/100?u=${encodeURIComponent("group_" + name + Date.now())}`, isOnline: false, lastSeen: "", about: action.payload.about?.trim() || "New group created in Oppty Chats.", contact: action.payload.contact?.trim() || "Not available", isAdmin: true, blocked: false, hasLeft: false, disappearingMode: "off", members: [adminMember], messages: [sysMsg], };
+      const newGroup = { 
+        id: sysMsg.chatId, kind: "group", name, 
+        avatarUrl: action.payload.avatarUrl || `https://i.pravatar.cc/100?u=${encodeURIComponent("group_" + name + Date.now())}`, 
+        isOnline: false, lastSeen: "", about: action.payload.about?.trim() || "New group created in Oppty Chats.", contact: action.payload.contact?.trim() || "Not available", 
+        isAdmin: true, blocked: false, hasLeft: false, disappearingMode: "off", 
+        isBroadcast: action.payload.isBroadcast ?? false, // Handles initial broadcast setting
+        members: [adminMember], messages: [sysMsg], 
+      };
       const chats = [newGroup, ...state.chats];
       saveChats(chats); return { chats };
     }
@@ -256,13 +274,11 @@ function reducer(state, action) {
     }
 
     case "DELETE_CHAT": {
-      // NOTE: Removed `if (!isSystemAdmin()) return state;` allowing anyone to delete their local chat history
       const chats = state.chats.filter((chat) => String(chat.id) !== String(action.chatId));
       saveChats(chats); return { chats };
     }
 
     case "TOGGLE_BLOCK_CHAT": {
-      // NOTE: Removed `if (!isSystemAdmin()) return state;` allowing anyone to block a chat locally
       const chats = state.chats.map((chat) => String(chat.id) === String(action.chatId) ? { ...chat, blocked: !chat.blocked } : chat);
       saveChats(chats); return { chats };
     }
@@ -409,6 +425,7 @@ export function ChatProvider({ children }) {
       deleteChat: (chatId) => dispatch({ type: "DELETE_CHAT", chatId }),
       toggleBlockChat: (chatId) => dispatch({ type: "TOGGLE_BLOCK_CHAT", chatId }),
       setDisappearingMode: (chatId, mode) => dispatch({ type: "SET_DISAPPEARING_MODE", chatId, mode }),
+      toggleBroadcastMode: (chatId) => dispatch({ type: "TOGGLE_BROADCAST_MODE", chatId }), // <--- New API export
       addGroupMember: (chatId, member) => dispatch({ type: "ADD_GROUP_MEMBER", chatId, member }),
       removeGroupMember: (chatId, memberId) => dispatch({ type: "REMOVE_GROUP_MEMBER", chatId, memberId }),
       promoteAdmin: (chatId, memberId) => dispatch({ type: "PROMOTE_ADMIN", chatId, memberId }),
