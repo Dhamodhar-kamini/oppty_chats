@@ -215,6 +215,11 @@
   margin: 4px auto 6px;
 }
 
+.company-login-logo.opptyLogo {
+  width: 180px;
+  height: 40px;
+}
+
 @keyframes authPopupIn {
   from {
     opacity: 0;

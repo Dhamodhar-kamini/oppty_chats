@@ -199,7 +199,7 @@ export default function EmployeeLogin() {
               <img src={companyLogo} alt="Company Logo" className="company-login-logo opptyLogo" />
             </div>
             <h1 className="sectionTitle">
-              <span className="titleBlack">Oppty</span> <span className="titleOrange" style={{marginLeft: "0px"}}> Connect</span>
+             <span className="titleOrange">Connect</span>
             </h1>
             <p>Login to access your chat dashboard</p>
           </div>
