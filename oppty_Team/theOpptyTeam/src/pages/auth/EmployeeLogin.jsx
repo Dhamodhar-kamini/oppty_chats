@@ -195,8 +195,12 @@ export default function EmployeeLogin() {
       <div className="employee-login-page">
         <div className="employee-login-card">
           <div className="employee-login-header">
-            <img src={companyLogo} alt="Company Logo" className="company-login-logo" />
-            <h1>Oppty Connect</h1>
+            <div className="brandRow">
+              <img src={companyLogo} alt="Company Logo" className="company-login-logo opptyLogo" />
+            </div>
+            <h1 className="sectionTitle">
+              <span className="titleBlack">Oppty</span> <span className="titleOrange" style={{marginLeft: "0px"}}> Connect</span>
+            </h1>
             <p>Login to access your chat dashboard</p>
           </div>
 
