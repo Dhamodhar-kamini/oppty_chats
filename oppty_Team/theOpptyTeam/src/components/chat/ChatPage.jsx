@@ -105,6 +105,7 @@ export default function ChatPage() {
   const [replyingTo, setReplyingTo] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
   const [forwardingMessage, setForwardingMessage] = useState(null);
+  const [forwardSelectedChats, setForwardSelectedChats] = useState([]); // ADDED FOR MULTI-FORWARD
   const [deletePrompt, setDeletePrompt] = useState(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedMessages, setSelectedMessages] = useState([]);
@@ -268,7 +269,10 @@ export default function ChatPage() {
     };
     const handleEscape = (event) => {
       if (event.key === "Escape") {
-        setShowOptionsMenu(false); setShowChatInfo(false); setIsEditingName(false); setIsEditingAbout(false); setPreviewMedia(""); setShowMediaPanel(false); setShowAttachMenu(false); setShowStickerMenu(false); setForwardingMessage(null); setDeletePrompt(null); setShowPollModal(false); setActiveThreadMsgId(null);
+        setShowOptionsMenu(false); setShowChatInfo(false); setIsEditingName(false); setIsEditingAbout(false); setPreviewMedia(""); setShowMediaPanel(false); setShowAttachMenu(false); setShowStickerMenu(false); 
+        setForwardingMessage(null); 
+        setForwardSelectedChats([]); // ADDED FOR MULTI-FORWARD
+        setDeletePrompt(null); setShowPollModal(false); setActiveThreadMsgId(null);
         if (mentionState.active) setMentionState(p => ({ ...p, active: false }));
         if (selectionMode) { setSelectionMode(false); setSelectedMessages([]); }
         if (searchOpen) { setSearchOpen(false); setSearchTerm(""); setFilterSender(""); setFilterDate(""); setActiveSearchIndex(0); }
@@ -435,11 +439,28 @@ export default function ChatPage() {
   const handleReplyMessage = (message) => { setReplyingTo(message); setEditingMessage(null); setActiveThreadMsgId(null); };
   const handleEditMessage = (message) => { setEditingMessage(message); setText(message.text); setReplyingTo(null); setActiveThreadMsgId(null); if (composerInputRef.current) { composerInputRef.current.style.height = "auto"; composerInputRef.current.style.height = Math.min(composerInputRef.current.scrollHeight, 120) + "px"; } };
 
-  const handleForwardSubmit = (targetChatId) => {
-    if (!forwardingMessage) return;
+  // ADDED FOR MULTI-FORWARD
+  const toggleForwardSelection = (cId) => {
+    setForwardSelectedChats(prev => prev.includes(cId) ? prev.filter(id => id !== cId) : [...prev, cId]);
+  };
+
+  // ADDED FOR MULTI-FORWARD
+  const handleMultiForwardSubmit = () => {
+    if (!forwardingMessage || forwardSelectedChats.length === 0) return;
     const messagesToForward = Array.isArray(forwardingMessage) ? forwardingMessage : [forwardingMessage];
-    messagesToForward.forEach(msg => { if (msg.type === "text") sendMessage(targetChatId, msg.text); else sendAttachment(targetChatId, msg.type, msg.fileUrl, msg.fileName); });
-    setForwardingMessage(null); setSelectionMode(false); setSelectedMessages([]); showToast(`Forwarded ${messagesToForward.length} messages`);
+    
+    forwardSelectedChats.forEach(targetChatId => {
+      messagesToForward.forEach(msg => { 
+        if (msg.type === "text") sendMessage(targetChatId, msg.text); 
+        else sendAttachment(targetChatId, msg.type, msg.fileUrl, msg.fileName); 
+      });
+    });
+    
+    setForwardingMessage(null); 
+    setForwardSelectedChats([]); 
+    setSelectionMode(false); 
+    setSelectedMessages([]); 
+    showToast(`Forwarded to ${forwardSelectedChats.length} chat${forwardSelectedChats.length > 1 ? 's' : ''}`);
   };
 
   const confirmDelete = () => {
@@ -1013,12 +1034,39 @@ export default function ChatPage() {
         </div>
       )}
 
+      {/* ADDED FOR MULTI-FORWARD: REPLACED FORWARD MODAL UI */}
       {forwardingMessage && (
-        <div className="mediaPreviewOverlay animatedFadeIn" onClick={() => setForwardingMessage(null)}>
+        <div className="mediaPreviewOverlay animatedFadeIn" onClick={() => { setForwardingMessage(null); setForwardSelectedChats([]); }}>
           <div className="customModal forwardModal" onClick={(e) => e.stopPropagation()}>
-            <div className="forwardModalHeader"><h3 className="customModalTitle">Forward to...</h3><button className="iconBtn" onClick={() => setForwardingMessage(null)}>✕</button></div>
-            <div className="forwardChatList">
-              {chats.map(c => (<div key={c.id} className="forwardChatRow" onClick={() => handleForwardSubmit(c.id)}><img src={c.avatarUrl} alt={c.name} className="forwardChatAvatar" /><div className="forwardChatName">{c.name}</div></div>))}
+            <div className="forwardModalHeader">
+              <h3 className="customModalTitle">Forward to...</h3>
+              <button className="iconBtn" onClick={() => { setForwardingMessage(null); setForwardSelectedChats([]); }}>✕</button>
+            </div>
+            
+            <div className="forwardChatList" style={{ maxHeight: '50vh', overflowY: 'auto' }}>
+              {chats.map(c => (
+                <label key={c.id} className="forwardChatRow" style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '10px 16px', borderBottom: '1px solid var(--border)', margin: 0 }}>
+                  <input 
+                    type="checkbox" 
+                    checked={forwardSelectedChats.includes(c.id)}
+                    onChange={() => toggleForwardSelection(c.id)}
+                    style={{ marginRight: '16px', width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--primary)' }}
+                  />
+                  <img src={c.avatarUrl} alt={c.name} className="forwardChatAvatar" style={{ width: '40px', height: '40px', borderRadius: '50%', marginRight: '12px' }} />
+                  <div className="forwardChatName" style={{ flex: 1, fontWeight: 500 }}>{c.name}</div>
+                </label>
+              ))}
+            </div>
+
+            <div className="customModalActions" style={{ padding: "16px 20px", borderTop: "1px solid var(--border)" }}>
+              <button className="popup-btn popup-btn-secondary" onClick={() => { setForwardingMessage(null); setForwardSelectedChats([]); }}>Cancel</button>
+              <button 
+                className="popup-btn popup-btn-danger" 
+                onClick={handleMultiForwardSubmit} 
+                disabled={forwardSelectedChats.length === 0}
+              >
+                Forward {forwardSelectedChats.length > 0 ? `(${forwardSelectedChats.length})` : ''}
+              </button>
             </div>
           </div>
         </div>
