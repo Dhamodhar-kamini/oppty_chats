@@ -1,3 +1,4 @@
+// src/components/chat/ChatsLayout.jsx
 import React from "react";
 import { Outlet, useParams } from "react-router-dom";
 import { useMediaQuery } from "../../hooks/useMediaQuery.js";

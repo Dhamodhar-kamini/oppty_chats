@@ -1,330 +1,396 @@
-import React, { useEffect, useRef, useState } from "react";
-import { useChats } from "../../context/ChatContext.jsx";
+// src/components/chat/MessageBubble.jsx
+import React, { useState, useRef, useEffect } from "react";
+import FilePreview from "./FilePreview.jsx";
+import { 
+  addReaction, 
+  removeReaction, 
+  editMessage, 
+  deleteMessageForMe, 
+  deleteMessageForEveryone,
+  respondToMeetInvite 
+} from "../../utils/api.js";
+import "./FileUpload.css";
 
-function formatTime(ts) {
-  const value = Number(ts);
-  if (!Number.isFinite(value)) return "";
-  return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-const QUICK_REACTIONS = ["❤️", "👍", "😂", "😮", "😢", "🙏"];
-
-function ReplySnippet({ replyTo, onClick }) {
-  if (!replyTo) return null;
-  return (
-    <div className="waReplySnippet" onClick={onClick} style={{ cursor: onClick ? "pointer" : "default" }}>
-      <div className="waReplyBar" />
-      <div className="waReplyBody">
-        <div className="waReplyTitle">{replyTo.senderName || "Reply"}</div>
-        <div className="waReplyMessage">
-          {replyTo.type === "image" ? `🖼 ${replyTo.fileName || "Photo"}` : replyTo.type === "document" ? `📄 ${replyTo.fileName || "Document"}` : replyTo.text || "Message"}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function renderTextWithMentions(text) {
-  if (typeof text !== 'string') return text;
-  const parts = text.split(/(@[a-zA-Z0-9_]+)/g);
-  return parts.map((part, i) => 
-    part.startsWith('@') ? <span key={i} className="waMention">{part}</span> : part
-  );
-}
-
-export default function MessageBubble({
-  message, onReply, onEdit, onForward, onDeleteForMe, onDeleteForAll, canDeleteForAll,
-  onScrollToReply, onPreviewImage, onReaction, onStar, onPin, onVote,
-  selectionMode, isSelected, onToggleSelect
-}) {
-  const { showToast } = useChats();
+export default function MessageBubble({ message, showSenderInfo = false, onMessageUpdate, onMessageDelete }) {
   const isMine = message.isMine;
-  const wrapRef = useRef(null);
-  
-  const [menuPos, setMenuPos] = useState({ visible: false, x: 0, y: 0 });
-  const [showHoverReactions, setShowHoverReactions] = useState(false);
-  const [swipeX, setSwipeX] = useState(0);
-  const touchStartX = useRef(null);
-  const longPressTimer = useRef(null);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editContent, setEditContent] = useState(message.text || "");
+  const [reactions, setReactions] = useState(message.reactions || {});
+  const [userReaction, setUserReaction] = useState(message.userReaction || null);
+  const [localDeleted, setLocalDeleted] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [myInviteStatus, setMyInviteStatus] = useState(message.myInviteStatus);
+  const menuRef = useRef(null);
 
+  const formatTime = (timestamp) => {
+    try {
+      return new Date(timestamp).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "";
+    }
+  };
+
+  // Close menu when clicking outside
   useEffect(() => {
-    const handleOutside = (event) => {
-      if (wrapRef.current && !wrapRef.current.contains(event.target)) {
-        setMenuPos({ visible: false, x: 0, y: 0 });
-        setShowHoverReactions(false);
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setShowMenu(false);
       }
     };
-    document.addEventListener("mousedown", handleOutside);
-    return () => document.removeEventListener("mousedown", handleOutside);
-  }, []);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      if (menuPos.visible || showHoverReactions) {
-        setMenuPos({ visible: false, x: 0, y: 0 });
-        setShowHoverReactions(false);
-      }
+    if (showMenu) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
     };
-    window.addEventListener('scroll', handleScroll, true); 
-    return () => window.removeEventListener('scroll', handleScroll, true);
-  }, [menuPos.visible, showHoverReactions]);
+  }, [showMenu]);
 
-  if (message.type === "system") {
-    return (
-      <div className="waSystemMessageWrap animatedFadeIn">
-        <div className="waSystemMessage">{message.text}</div>
-      </div>
-    );
+  // Handle reactions
+  const handleReaction = async (reactionType) => {
+    try {
+      if (userReaction === reactionType) {
+        await removeReaction(message.id);
+        setUserReaction(null);
+        setReactions(prev => {
+          const updated = { ...prev };
+          if (updated[reactionType]) {
+            updated[reactionType]--;
+            if (updated[reactionType] === 0) delete updated[reactionType];
+          }
+          return updated;
+        });
+      } else {
+        await addReaction(message.id, reactionType);
+        if (userReaction) {
+          setReactions(prev => {
+            const updated = { ...prev };
+            if (updated[userReaction]) {
+              updated[userReaction]--;
+              if (updated[userReaction] === 0) delete updated[userReaction];
+            }
+            return updated;
+          });
+        }
+        setUserReaction(reactionType);
+        setReactions(prev => ({
+          ...prev,
+          [reactionType]: (prev[reactionType] || 0) + 1,
+        }));
+      }
+      setShowMenu(false);
+    } catch (err) {
+      console.error("Reaction error:", err);
+    }
+  };
+
+  // Handle edit
+  const handleEdit = async () => {
+    if (!editContent.trim()) {
+      alert("Message cannot be empty");
+      return;
+    }
+    
+    setIsEditing(true);
+    try {
+      await editMessage(message.id, editContent.trim());
+      setShowEditModal(false);
+      if (onMessageUpdate) {
+        onMessageUpdate(message.id, { text: editContent.trim(), isEdited: true });
+      }
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setIsEditing(false);
+    }
+  };
+
+  // Handle delete for me
+  const handleDeleteForMe = async () => {
+    if (!window.confirm("Delete this message for yourself?")) return;
+    
+    try {
+      await deleteMessageForMe(message.id);
+      setLocalDeleted(true);
+      if (onMessageDelete) {
+        onMessageDelete(message.id, 'forMe');
+      }
+    } catch (err) {
+      alert(err.message);
+    }
+    setShowMenu(false);
+  };
+
+  // Handle delete for everyone
+  const handleDeleteForEveryone = async () => {
+    if (!window.confirm("Delete this message for everyone? This cannot be undone.")) return;
+    
+    try {
+      await deleteMessageForEveryone(message.id);
+      if (onMessageDelete) {
+        onMessageDelete(message.id, 'forEveryone');
+      }
+    } catch (err) {
+      alert(err.message);
+    }
+    setShowMenu(false);
+  };
+
+  // Handle meet invite response
+  const handleMeetResponse = async (status) => {
+    try {
+      await respondToMeetInvite(message.id, status);
+      setMyInviteStatus(status);
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  // Join meeting
+  const handleJoinMeet = () => {
+    if (message.meetLink) {
+      window.open(message.meetLink, '_blank');
+      if (!isMine) {
+        handleMeetResponse('attended');
+      }
+    }
+  };
+
+  // If deleted locally, don't render
+  if (localDeleted) {
+    return null;
   }
 
-  const openMenuAt = (clientX, clientY) => {
-    let x = clientX;
-    let y = clientY;
-    // Tighter boundary calculation to prevent clipping
-    const menuWidth = 200; 
-    const menuHeight = 350; 
-    
-    if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 10;
-    if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 10;
-    if (x < 10) x = 10;
-    if (y < 10) y = 10;
-
-    setMenuPos({ visible: true, x, y });
-  };
-
-  const handleTouchStart = (e) => {
-    if (selectionMode) return;
-    const touchX = e.touches[0].clientX;
-    const touchY = e.touches[0].clientY;
-    touchStartX.current = touchX;
-
-    longPressTimer.current = setTimeout(() => {
-      openMenuAt(touchX, touchY);
-      if (window.navigator && window.navigator.vibrate) navigator.vibrate(50);
-    }, 500);
-  };
-
-  const handleTouchMove = (e) => {
-    if (selectionMode || touchStartX.current === null) return;
-    clearTimeout(longPressTimer.current);
-    const deltaX = e.touches[0].clientX - touchStartX.current;
-    if (deltaX > 0 && deltaX < 80) setSwipeX(deltaX);
-  };
-
-  const handleTouchEnd = () => {
-    clearTimeout(longPressTimer.current);
-    touchStartX.current = null;
-    if (swipeX > 50 && !message.deletedForAll) {
-      onReply?.();
-      if (window.navigator && window.navigator.vibrate) navigator.vibrate(30);
-    }
-    setSwipeX(0);
-  };
-
-  const handleContextMenu = (e) => {
-    e.preventDefault();
-    if (!selectionMode && !message.deletedForAll) {
-      openMenuAt(e.clientX, e.clientY);
-    }
-  };
-
-  const handleChevronClick = (e) => {
-    e.stopPropagation();
-    const rect = e.currentTarget.getBoundingClientRect();
-    openMenuAt(rect.left, rect.bottom + 4);
-  };
-
-  const handleBubbleClick = () => {
-    if (selectionMode) onToggleSelect?.();
-  };
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(message.text);
-    showToast("Message copied to clipboard");
-    setMenuPos({ visible: false, x: 0, y: 0 });
-  };
-
-  const displayContent = () => {
-    if (message.type === "image") {
-      return (
-        <div className="waAttachmentWrap">
-          <img src={message.fileUrl} alt={message.fileName || "Uploaded image"} className="chatAttachmentImage" onClick={() => { if(!selectionMode) onPreviewImage?.(message.fileUrl); }} style={{ cursor: selectionMode ? 'default' : "pointer" }} />
-          {message.fileName && <div className="chatAttachmentName">{message.fileName}</div>}
-        </div>
-      );
-    }
-
-    if (message.type === "document") {
-      return (
-        <a href={message.fileUrl || "#"} target="_blank" rel="noreferrer" className="chatDocumentCard" onClick={(e) => selectionMode && e.preventDefault()}>
-          <div className="chatDocumentIcon">📄</div>
-          <div className="chatDocumentInfo">
-            <div className="chatDocumentName">{message.fileName || "Document"}</div>
-            <div className="chatDocumentSubtext">Open document</div>
-          </div>
-        </a>
-      );
-    }
-
-    if (message.type === "poll") {
-      const uniqueVoters = new Set();
-      message.pollOptions.forEach(opt => opt.votedBy.forEach(id => uniqueVoters.add(id)));
-      const totalVoters = uniqueVoters.size;
-
-      return (
-        <div className="waPollContainer">
-          <div className="waPollQuestion">📊 {message.text}</div>
-          <div className="waPollMultipleText">{message.allowMultiple ? "Select one or more" : "Select one"}</div>
-          <div className="waPollOptionsList">
-            {message.pollOptions.map((opt) => {
-              const hasVoted = opt.votedBy.includes("me") || (message.isMine && opt.votedBy.length > 0); 
-              const percent = totalVoters > 0 ? (opt.votedBy.length / totalVoters) * 100 : 0;
-              
-              return (
-                <div key={opt.id} className="waPollOption" onClick={() => onVote(opt.id)}>
-                  <div className="waPollOptionControl">
-                    <div className={`waPollCheckbox ${message.allowMultiple ? 'square' : 'circle'} ${hasVoted ? 'active' : ''}`}>
-                      {hasVoted && (message.allowMultiple ? '✓' : <div className="waPollRadioDot" />)}
-                    </div>
-                  </div>
-                  <div className="waPollOptionBody">
-                    <div className="waPollOptionHeader">
-                      <span className="waPollOptionText">{opt.text}</span>
-                      {opt.votedBy.length > 0 && <span className="waPollOptionCount">{opt.votedBy.length}</span>}
-                    </div>
-                    <div className="waPollProgressTrack">
-                      <div className="waPollProgressFill" style={{ width: `${percent}%` }} />
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="waPollFooter">{totalVoters} vote{totalVoters !== 1 ? 's' : ''}</div>
-        </div>
-      );
-    }
-
-    const urlMatch = message.text?.match(/https?:\/\/[^\s]+/i)?.[0];
-    const hasLinkPreview = message.linkPreview && !message.deletedForAll && urlMatch;
-
-    return (
-      <div className={`waBubbleText ${message.deletedForAll ? "deleted" : ""}`}>
-        {message.displayText ?? (
-          urlMatch && !hasLinkPreview 
-            ? <a href={urlMatch} target="_blank" rel="noreferrer" className="chatLinkPreview" onClick={(e) => selectionMode && e.preventDefault()}>{message.text}</a>
-            : renderTextWithMentions(message.text)
-        ) ?? ""}
-        
-        {hasLinkPreview && (
-          <a href={urlMatch} target="_blank" rel="noreferrer" className="waLinkPreviewCard" onClick={(e) => selectionMode && e.preventDefault()}>
-            <img src={message.linkPreview.imageUrl} alt="Preview" className="waLinkPreviewImage" />
-            <div className="waLinkPreviewContent">
-              <div className="waLinkPreviewTitle">{message.linkPreview.title}</div>
-              <div className="waLinkPreviewDesc">{message.linkPreview.description}</div>
-              <div className="waLinkPreviewDomain">{message.linkPreview.domain}</div>
-            </div>
-          </a>
-        )}
-      </div>
-    );
-  };
-
-  const renderContextMenu = () => {
-    if (!menuPos.visible || selectionMode) return null;
-    
-    // Using Fixed Positioning + High Z-Index guarantees it escapes hidden overflows
-    const style = { position: 'fixed', top: menuPos.y, left: menuPos.x, margin: 0, zIndex: 9999999, minWidth: '180px', width: 'max-content' };
-
-    return (
-      <div className={`waBubbleMenu ${isMine ? "mine" : "theirs"}`} style={style} onClick={e => e.stopPropagation()}>
-        {!message.deletedForAll && (
-          <div className="waQuickReactions">
-            {QUICK_REACTIONS.map(emoji => (
-              <button key={emoji} type="button" className={`reactionBtn ${message.reactions?.includes(emoji) ? "active" : ""}`} onClick={() => { onReaction(emoji); setMenuPos({ visible: false, x:0, y:0 }); setShowHoverReactions(false); }}>{emoji}</button>
-            ))}
-          </div>
-        )}
-        
-        <button type="button" className="waBubbleMenuItem" onClick={() => { onToggleSelect(); setMenuPos({ visible: false, x:0, y:0 }); }}>Select messages</button>
-        {!message.deletedForAll && <button type="button" className="waBubbleMenuItem" onClick={() => { onReply?.(); setMenuPos({ visible: false, x:0, y:0 }); }}>Reply</button>}
-        {!message.deletedForAll && isMine && message.type === 'text' && <button type="button" className="waBubbleMenuItem" onClick={() => { onEdit?.(); setMenuPos({ visible: false, x:0, y:0 }); }}>Edit</button>}
-        {!message.deletedForAll && message.text && <button type="button" className="waBubbleMenuItem" onClick={handleCopy}>Copy</button>}
-        {!message.deletedForAll && <button type="button" className="waBubbleMenuItem" onClick={() => { onForward?.([message]); setMenuPos({ visible: false, x:0, y:0 }); }}>Forward</button>}
-        
-        {!message.deletedForAll && <button type="button" className="waBubbleMenuItem" onClick={() => { onStar(); setMenuPos({ visible: false, x:0, y:0 }); showToast(message.isStarred ? "Unstarred" : "Message Starred"); }}>{message.isStarred ? "Unstar" : "Star"}</button>}
-        {!message.deletedForAll && <button type="button" className="waBubbleMenuItem" onClick={() => { onPin(); setMenuPos({ visible: false, x:0, y:0 }); showToast(message.isPinned ? "Unpinned" : "Message Pinned"); }}>{message.isPinned ? "Unpin" : "Pin"}</button>}
-
-        <button type="button" className="waBubbleMenuItem" onClick={() => { onDeleteForMe?.(); setMenuPos({ visible: false, x:0, y:0 }); }}>Delete for me</button>
-        {canDeleteForAll && !message.deletedForAll && <button type="button" className="waBubbleMenuItem danger" onClick={() => { onDeleteForAll?.(); setMenuPos({ visible: false, x:0, y:0 }); }}>Delete for all</button>}
-      </div>
-    );
-  };
+  const hasReactions = Object.keys(reactions).length > 0;
+  const time = formatTime(message.createdAt);
+  const isMeetMessage = message.messageType === 'meet';
+  const isDeleted = message.isDeleted || message.deletedForEveryone;
 
   return (
-    // FIX: Removed "animatedFadeIn" from waRow because CSS 'transform' traps 'position: fixed' children!
-    <div className={`waRow ${isMine ? "mine" : "theirs"} ${selectionMode && isSelected ? "selected" : ""}`}>
-      {selectionMode && (
-        <div className="waSelectionArea" onClick={onToggleSelect}>
-          <div className={`waCheckbox ${isSelected ? "checked" : ""}`}>{isSelected && "✓"}</div>
-        </div>
-      )}
-
-      <div className="waBubbleContainer" ref={wrapRef} onClick={handleBubbleClick}>
-        <div className="swipeReplyIcon" style={{ opacity: swipeX / 50, transform: `translateX(${swipeX - 40}px) scale(${Math.min(swipeX / 50, 1)})`}}>↩</div>
-
-        {!selectionMode && !message.deletedForAll && (
-          <div className="waHoverActions">
-            <button onClick={(e) => { e.stopPropagation(); setShowHoverReactions(!showHoverReactions); }} title="React">😀</button>
-            <button onClick={(e) => { e.stopPropagation(); onReply?.(); }} title="Reply">↩</button>
-            <button onClick={handleChevronClick} title="Menu">▾</button>
-            
-            {showHoverReactions && (
-              <div className="waHoverReactionsMenu">
-                 {QUICK_REACTIONS.map(emoji => (
-                  <button key={emoji} onClick={(e) => { e.stopPropagation(); onReaction(emoji); setShowHoverReactions(false); }}>{emoji}</button>
-                ))}
+    <>
+      <div className={`waRow ${isMine ? "mine" : "theirs"}`}>
+        <div className="message-container">
+          {/* Message Bubble */}
+          <div className={`waBubble ${isMine ? "mine" : "theirs"} ${isDeleted ? "deleted" : ""}`}>
+            {/* 3-dot menu button */}
+            {!isDeleted && (
+              <div className="message-menu-wrapper">
+                <button 
+                  className="message-menu-btn"
+                  onClick={() => setShowMenu(!showMenu)}
+                  type="button"
+                >
+                  ⋮
+                </button>
+                
+                {/* Context Menu */}
+                {showMenu && (
+                  <div className="message-context-menu" ref={menuRef}>
+                    {/* Reactions */}
+                    <div className="menu-section reactions-section">
+                      <button 
+                        className={`reaction-option ${userReaction === 'ok' ? 'active' : ''}`}
+                        onClick={() => handleReaction('ok')}
+                        type="button"
+                      >
+                        👍
+                      </button>
+                      <button 
+                        className={`reaction-option ${userReaction === 'not_ok' ? 'active' : ''}`}
+                        onClick={() => handleReaction('not_ok')}
+                        type="button"
+                      >
+                        👎
+                      </button>
+                    </div>
+                    
+                    <div className="menu-divider"></div>
+                    
+                    {/* Edit (only for sender, within 15 min) */}
+                    {isMine && message.canEdit && !isMeetMessage && (
+                      <button 
+                        className="menu-item"
+                        onClick={() => {
+                          setEditContent(message.text || "");
+                          setShowEditModal(true);
+                          setShowMenu(false);
+                        }}
+                        type="button"
+                      >
+                        ✏️ Edit
+                      </button>
+                    )}
+                    
+                    {/* Delete for Me */}
+                    <button 
+                      className="menu-item"
+                      onClick={handleDeleteForMe}
+                      type="button"
+                    >
+                      🗑️ Delete for me
+                    </button>
+                    
+                    {/* Delete for Everyone (only for sender, within 1 hour) */}
+                    {isMine && message.canDeleteForEveryone && (
+                      <button 
+                        className="menu-item danger"
+                        onClick={handleDeleteForEveryone}
+                        type="button"
+                      >
+                        🗑️ Delete for everyone
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
+
+            {/* Sender name for group chats */}
+            {showSenderInfo && !isMine && message.senderName && (
+              <div className="waSenderName">{message.senderName}</div>
+            )}
+
+            {/* Deleted message */}
+            {isDeleted ? (
+              <div className="deleted-message-text">
+                🚫 This message was deleted
+              </div>
+            ) : (
+              <>
+                {/* File Preview */}
+                {message.messageType !== "text" && message.messageType !== "meet" && message.fileUrl && (
+                  <FilePreview message={message} />
+                )}
+
+                {/* Meet Message */}
+                {isMeetMessage && message.meetLink && (
+                  <div className="meet-message">
+                    <div className="meet-header">
+                      <span className="meet-icon">📅</span>
+                      <div className="meet-info">
+                        <div className="meet-title">{message.meetTitle || "Meeting"}</div>
+                        {message.meetScheduledAt && (
+                          <div className="meet-time">
+                            🕐 {new Date(message.meetScheduledAt).toLocaleString()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="meet-actions">
+                      <button className="meet-join-btn" onClick={handleJoinMeet} type="button">
+                        🎥 Join Meeting
+                      </button>
+                      {!isMine && myInviteStatus && (
+                        <div className="meet-response">
+                          {myInviteStatus === 'pending' && (
+                            <div className="meet-response-btns">
+                              <button 
+                                className="accept-btn"
+                                onClick={() => handleMeetResponse('accepted')}
+                                type="button"
+                              >
+                                ✓ Accept
+                              </button>
+                              <button 
+                                className="decline-btn"
+                                onClick={() => handleMeetResponse('declined')}
+                                type="button"
+                              >
+                                ✕ Decline
+                              </button>
+                            </div>
+                          )}
+                          {myInviteStatus === 'accepted' && (
+                            <span className="invite-status accepted">✓ Accepted</span>
+                          )}
+                          {myInviteStatus === 'declined' && (
+                            <span className="invite-status declined">✕ Declined</span>
+                          )}
+                          {myInviteStatus === 'attended' && (
+                            <span className="invite-status attended">✓ Attended</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Text Content */}
+                {message.text && !isMeetMessage && (
+                  <div className="waBubbleText">{message.text}</div>
+                )}
+              </>
+            )}
+            
+            {/* Footer */}
+            <div className="waBubbleFooter">
+              {message.isEdited && !isDeleted && <span className="edited-label">edited</span>}
+              <span className="waTime">{time}</span>
+              {isMine && !isDeleted && <span className="waStatus">✓✓</span>}
+            </div>
           </div>
-        )}
 
-        <div 
-          className={`waBubble ${isMine ? "mine" : "theirs"}`}
-          style={{ transform: `translateX(${swipeX}px)`, transition: swipeX === 0 ? "transform 0.2s ease" : "none" }}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          onContextMenu={handleContextMenu}
-        >
-          {!selectionMode && (
-            <button type="button" className="waBubbleMenuBtn mobile-only" aria-label="Message options" onClick={handleChevronClick}>▾</button>
-          )}
-
-          {!isMine && message.senderName && !message.deletedForAll && (
-             <div className="waSenderName">{message.senderName}</div>
-          )}
-
-          <ReplySnippet replyTo={message.replyTo} onClick={() => { if(!selectionMode) onScrollToReply?.(message.replyTo.id); }} />
-          
-          {displayContent()}
-
-          <div className="waBubbleFooter">
-            {message.isStarred && <span className="waStarIcon">⭐</span>}
-            {message.isEdited && <span className="waEdited">Edited</span>}
-            <span className="waTime">{formatTime(message.createdAt)}</span>
-            {isMine && !message.deletedForAll && <span className={`waStatus ${message.status || "sent"}`}>{message.status === 'sent' ? '✓' : '✓✓'}</span>}
-          </div>
-
-          {message.reactions && message.reactions.length > 0 && (
-            <div className="waReactionsDisplay">
-              {message.reactions.map((emoji, i) => <span key={i} className="waReactionBadge">{emoji}</span>)}
+          {/* Reactions Display - OUTSIDE BUBBLE (WhatsApp Style) */}
+          {hasReactions && !isDeleted && (
+            <div className={`reactions-outside ${isMine ? "mine" : "theirs"}`}>
+              {reactions.ok > 0 && (
+                <span 
+                  className={`reaction-pill ${userReaction === 'ok' ? 'mine' : ''}`}
+                  onClick={() => handleReaction('ok')}
+                >
+                  👍 {reactions.ok}
+                </span>
+              )}
+              {reactions.not_ok > 0 && (
+                <span 
+                  className={`reaction-pill ${userReaction === 'not_ok' ? 'mine' : ''}`}
+                  onClick={() => handleReaction('not_ok')}
+                >
+                  👎 {reactions.not_ok}
+                </span>
+              )}
             </div>
           )}
         </div>
-        
-        {renderContextMenu()}
       </div>
-    </div>
+
+      {/* Edit Modal */}
+      {showEditModal && (
+        <div className="edit-modal-overlay" onClick={() => setShowEditModal(false)}>
+          <div className="edit-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Edit Message</h3>
+            <textarea
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              rows={4}
+              autoFocus
+            />
+            <div className="edit-modal-actions">
+              <button 
+                className="cancel-btn"
+                onClick={() => setShowEditModal(false)}
+                disabled={isEditing}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button 
+                className="save-btn"
+                onClick={handleEdit}
+                disabled={isEditing || !editContent.trim()}
+                type="button"
+              >
+                {isEditing ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

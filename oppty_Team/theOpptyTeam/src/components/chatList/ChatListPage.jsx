@@ -1,110 +1,199 @@
-import React, { useMemo, useState } from "react";
-import { NavLink } from "react-router-dom";
+// src/components/chatList/ChatListPage.jsx
+import React, { useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { useChats } from "../../context/ChatContext.jsx";
-import opptyLogo from "../../assets/opptylogo.png";
 
-function formatTime(ts) {
-  if (!ts) return "";
-  return new Date(ts).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+export default function ChatListPage({ mode }) {
+  const { 
+    chats, 
+    groups,
+    loading, 
+    groupsLoading,
+    error, 
+    fetchChats, 
+    fetchGroups,
+    markChatAsRead 
+  } = useChats();
+  
+  const { chatId } = useParams();
+  const navigate = useNavigate();
 
-function SectionTitle({ mode }) {
-  if (mode === "group") {
+  const isGroupMode = mode === "group";
+  const items = isGroupMode ? groups : chats;
+  const isLoading = isGroupMode ? groupsLoading : loading;
+
+  useEffect(() => {
+    if (isGroupMode) {
+      fetchGroups();
+    } else {
+      fetchChats();
+    }
+  }, [isGroupMode, fetchChats, fetchGroups]);
+
+  const handleItemClick = async (item) => {
+    if (item.unreadCount > 0) {
+      await markChatAsRead(item.id);
+    }
+    
+    if (isGroupMode) {
+      navigate(`/groups/${item.id}`);
+    } else {
+      navigate(`/chats/${item.id}`);
+    }
+  };
+
+  const formatTime = (timestamp) => {
+    if (!timestamp) return "";
+    try {
+      const date = new Date(timestamp);
+      const now = new Date();
+      const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 0) {
+        return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      } else if (diffDays === 1) {
+        return "Yesterday";
+      } else if (diffDays < 7) {
+        return date.toLocaleDateString([], { weekday: "short" });
+      } else {
+        return date.toLocaleDateString([], { month: "short", day: "numeric" });
+      }
+    } catch {
+      return "";
+    }
+  };
+
+  const getMessagePreview = (lastMessage, isGroup = false) => {
+    if (!lastMessage) return "";
+    
+    let prefix = "";
+    if (isGroup && lastMessage.sender && lastMessage.sender !== "me") {
+      prefix = `${lastMessage.sender.split(' ')[0]}: `;
+    } else if (lastMessage.sender === "me") {
+      prefix = "You: ";
+    }
+    
+    const text = lastMessage.text || "";
+    const maxLength = 28;
+    const truncated = text.length > maxLength ? text.substring(0, maxLength) + "..." : text;
+    return prefix + truncated;
+  };
+
+  const handleRefresh = () => {
+    if (isGroupMode) {
+      fetchGroups();
+    } else {
+      fetchChats();
+    }
+  };
+
+  if (isLoading) {
     return (
-      <span className="sectionTitle">
-        <span className="titleOrange">Gro</span>
-        <span className="titleBlack">ups</span>
-      </span>
+      <div className="chatList">
+        <header className="chatListHeader">
+          <h2>{isGroupMode ? "Groups" : "Chats"}</h2>
+        </header>
+        <div className="chatListLoading">
+          <div className="spinner"></div>
+          <p>Loading {isGroupMode ? "groups" : "chats"}...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !isGroupMode) {
+    return (
+      <div className="chatList">
+        <header className="chatListHeader">
+          <h2>{isGroupMode ? "Groups" : "Chats"}</h2>
+        </header>
+        <div className="chatListError">
+          <p>⚠️ {error}</p>
+          <button onClick={handleRefresh} className="refreshBtn">🔄 Retry</button>
+        </div>
+      </div>
     );
   }
 
   return (
-    <span className="sectionTitle">
-      <span className="titleOrange">Cha</span>
-      <span className="titleBlack">ts</span>
-    </span>
-  );
-}
+    <div className="chatList">
+      <header className="chatListHeader">
+        <h2>{isGroupMode ? "Groups" : "Chats"}</h2>
+        <button className="refreshBtn" onClick={handleRefresh} title="Refresh">
+          🔄
+        </button>
+      </header>
 
-export default function ChatListPage({ mode = "dm" }) {
-  const { chats } = useChats();
-  const [q, setQ] = useState("");
-
-  const filtered = useMemo(() => {
-    const query = q.trim().toLowerCase();
-    return chats
-      .filter((c) => (c.kind ?? "dm") === mode)
-      .filter((c) => (query ? c.name.toLowerCase().includes(query) : true));
-  }, [chats, mode, q]);
-
-  const placeholder = mode === "group" ? "Search groups" : "Search or start new chat";
-  const emptyText = mode === "group" ? "groups" : "chats";
-
-  return (
-    <div className="sidebarInner">
-      <div className="sidebarTop">
-        <div className="brandRow">
-          <img className="opptyLogo" src={opptyLogo} alt="Oppty" />
-          <SectionTitle mode={mode} />
+      {items.length === 0 ? (
+        <div className="chatListEmpty">
+          {isGroupMode ? (
+            <>
+              <span style={{ fontSize: 48, marginBottom: 12 }}>👥</span>
+              <p>No groups yet</p>
+              <span className="muted">Groups will appear here</span>
+            </>
+          ) : (
+            <>
+              <span style={{ fontSize: 48, marginBottom: 12 }}>💬</span>
+              <p>No conversations yet</p>
+              <span className="muted">Start chatting with colleagues!</span>
+            </>
+          )}
         </div>
+      ) : (
+        <ul className="chatListItems">
+          {items.map((item) => {
+            const isActive = chatId === item.id;
+            const lastMsg = item.lastMessage;
+            const hasUnread = (item.unreadCount || 0) > 0;
 
-        <input
-          className="searchInput"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder={placeholder}
-        />
-      </div>
-
-      <div className="chatList" role="list">
-        {filtered.map((chat) => {
-          const last = chat.messages?.[chat.messages.length - 1];
-          const chatPath = chat.kind === "group" ? `/groups/${chat.id}` : `/chats/${chat.id}`;
-
-          return (
-            <NavLink
-              key={chat.id}
-              to={chatPath}
-              className={({ isActive }) => `chatRow ${isActive ? "active" : ""}`}
-              role="listitem"
-            >
-              <img className="avatar" src={chat.avatarUrl} alt={chat.name} />
-
-              <div className="chatRowBody">
-                <div className="chatRowTop">
-                  <div className="chatName">{chat.name}</div>
-
-                  <div className="chatRowMetaRight">
-                    <div className="chatTime">{formatTime(last?.createdAt)}</div>
-                    {chat.unreadCount > 0 && (
-                      <span className="chatUnreadBadge">{chat.unreadCount}</span>
+            return (
+              <li
+                key={item.id}
+                className={`chatListItem ${isActive ? "active" : ""} ${hasUnread ? "hasUnread" : ""}`}
+                onClick={() => handleItemClick(item)}
+              >
+                <div className="chatListAvatarWrapper">
+                  <img 
+                    className="chatListAvatar" 
+                    src={item.avatarUrl} 
+                    alt={item.name}
+                    onError={(e) => {
+                      const bgColor = isGroupMode ? "4CAF50" : "random";
+                      e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name)}&background=${bgColor}`;
+                    }}
+                  />
+                  {hasUnread && <span className="chatListOnlineDot" />}
+                  {isGroupMode && <span className="groupBadge">👥</span>}
+                </div>
+                <div className="chatListContent">
+                  <div className="chatListTop">
+                    <span className={`chatListName ${hasUnread ? "bold" : ""}`}>
+                      {item.name}
+                    </span>
+                    {lastMsg && (
+                      <span className={`chatListTime ${hasUnread ? "unreadTime" : ""}`}>
+                        {formatTime(lastMsg.createdAt)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="chatListBottom">
+                    <span className={`chatListPreview ${hasUnread ? "unreadPreview" : ""}`}>
+                      {lastMsg 
+                        ? getMessagePreview(lastMsg, isGroupMode) 
+                        : (isGroupMode ? `${item.memberCount || 0} members` : item.email)
+                      }
+                    </span>
+                    {hasUnread && (
+                      <span className="chatListBadge">{item.unreadCount}</span>
                     )}
                   </div>
                 </div>
-
-                <div className="chatPreview">
-                  {chat.blocked ? (
-                    <span className="muted">Blocked by admin</span>
-                  ) : last?.text ? (
-                    last.text
-                  ) : (
-                    <span className="muted">No messages yet</span>
-                  )}
-                </div>
-              </div>
-            </NavLink>
-          );
-        })}
-
-        {filtered.length === 0 && (
-          <div className="emptyList">
-            <div className="muted">No {emptyText} found.</div>
-          </div>
-        )}
-      </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

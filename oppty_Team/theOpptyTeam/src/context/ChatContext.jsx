@@ -1,435 +1,468 @@
-import React, { createContext, useContext, useEffect, useMemo, useState, useReducer } from "react";
-import { getAuthUser } from "../utils/auth.js";
-import { employeeDB } from "../data/employees"; 
-
-const STORAGE_KEY = "opty_chat_v8";
-
-function uid() { return crypto?.randomUUID?.() ?? `${Date.now()}_${Math.random().toString(16).slice(2)}`; }
-function now() { return Date.now(); }
-
-function loadChats() {
-  try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : null; } 
-  catch { return null; }
-}
-function saveChats(chats) { localStorage.setItem(STORAGE_KEY, JSON.stringify(chats)); }
-function safeTime(value) {
-  const parsed = Number(value); if (Number.isFinite(parsed)) return parsed;
-  const dateValue = new Date(value).getTime(); if (Number.isFinite(dateValue)) return dateValue;
-  return now();
-}
-
-function generateMockLinkPreview(text) {
-  const urlMatch = text.match(/https?:\/\/[^\s]+/i);
-  if (!urlMatch) return null;
-  try {
-    const url = new URL(urlMatch[0]);
-    let preview = { domain: url.hostname.replace('www.', ''), title: "Shared Link Overview", description: "Tap to preview the website content shared in this link.", imageUrl: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=400&q=80" };
-    if (url.hostname.includes('youtube.com') || url.hostname.includes('youtu.be')) { preview.title = "YouTube Video"; preview.description = "Watch this video on YouTube."; preview.imageUrl = "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=400&q=80"; }
-    return preview;
-  } catch (e) { return null; }
-}
-
-function getDisappearingThreshold(mode) {
-  if (mode === "24h") return 24 * 60 * 60 * 1000;
-  if (mode === "7d") return 7 * 24 * 60 * 60 * 1000;
-  if (mode === "90d") return 90 * 24 * 60 * 60 * 1000;
-  return null;
-}
-
-const seed = [
-  {
-    id: "g1",
-    kind: "group",
-    name: "Oppty Team",
-    avatarUrl: "https://i.pravatar.cc/100?img=20",
-    isOnline: false,
-    lastSeen: "",
-    about: "Official team discussion group.",
-    contact: "opptyteam@oppty.com",
-    isAdmin: true,
-    blocked: false,
-    hasLeft: false,
-    disappearingMode: "off",
-    members: [
-      { id: "emp-1", name: "Employee One", email: "employee@oppty.com", avatarUrl: "https://i.pravatar.cc/100?img=11", isAdmin: false },
-      { id: "emp-3", name: "Dhamu", email: "dhamu@oppty.com", avatarUrl: "https://i.pravatar.cc/100?img=21", isAdmin: true },
-      { id: "emp-4", name: "Jason", email: "jason@oppty.com", avatarUrl: "https://i.pravatar.cc/100?img=22", isAdmin: false },
-    ],
-    messages: [
-      { id: uid(), chatId: "g1", sender: "system", senderName: "System", type: "system", text: "You created this group", createdAt: now() - 1000 * 60 * 305, replyTo: null, deletedForAll: false, deletedFor: [], status: "read", unread: false, reactions: [], isStarred: false, isPinned: false },
-      { id: uid(), chatId: "g1", sender: "dhamu@oppty.com", senderName: "Dhamu", type: "text", text: "Welcome to Oppty Team group!", createdAt: now() - 1000 * 60 * 300, replyTo: null, deletedForAll: false, deletedFor: [], status: "read", unread: false, reactions: [], isStarred: false, isPinned: false },
-    ],
-  },
-];
-
-function normalizeAndMerge(persisted) {
-  if (!Array.isArray(persisted)) return seed;
-  const nowMs = now();
-
-  const persistedNormalized = persisted.map((c) => {
-    const disappearingMode = c.disappearingMode ?? "off";
-    const threshold = getDisappearingThreshold(disappearingMode);
-    
-    const rawMessages = Array.isArray(c.messages) ? c.messages.map((m) => ({
-      ...m, id: m.id ?? uid(), chatId: m.chatId ?? c.id, sender: m.sender ?? "them", senderName: m.senderName ?? (m.sender === "me" ? "You" : "Them"),
-      type: m.type ?? "text", text: m.text ?? "", fileUrl: m.fileUrl ?? "", fileName: m.fileName ?? "", replyTo: m.replyTo ?? null,
-      deletedForAll: m.deletedForAll ?? false, deletedFor: Array.isArray(m.deletedFor) ? m.deletedFor : [], createdAt: safeTime(m.createdAt),
-      isEdited: m.isEdited ?? false, status: m.status ?? "read", unread: m.unread ?? false, reactions: Array.isArray(m.reactions) ? m.reactions : [],
-      isStarred: m.isStarred ?? false, isPinned: m.isPinned ?? false, linkPreview: m.linkPreview ?? null, pollOptions: Array.isArray(m.pollOptions) ? m.pollOptions : [], allowMultiple: m.allowMultiple ?? false
-    })) : [];
-
-    const activeMessages = rawMessages.filter(m => {
-      if (m.isPinned) return true;
-      if (threshold && (nowMs - m.createdAt > threshold)) return false;
-      return true;
-    });
-
-    return {
-      ...c, kind: c.kind ?? "dm", about: c.about ?? "Hey there! I am using Oppty Chats.", contact: c.contact ?? "Not available", isAdmin: c.isAdmin ?? false, blocked: c.blocked ?? false, hasLeft: c.hasLeft ?? false,
-      disappearingMode, participants: Array.isArray(c.participants) ? c.participants : [], members: Array.isArray(c.members) ? c.members.map(m => ({ ...m, isAdmin: m.isAdmin ?? false })) : [], messages: activeMessages
-    };
-  });
-
-  const byId = new Map(persistedNormalized.map((c) => [c.id, c]));
-  for (const s of seed) { if (!byId.has(s.id)) byId.set(s.id, s); }
-  return Array.from(byId.values());
-}
+// src/context/ChatContext.jsx - ACTUALLY FIXED VERSION
+import React, { createContext, useContext, useState, useCallback, useRef } from "react";
+import { getAuthUser, clearAuthUser } from "../utils/auth.js";
+import { apiFetch } from "../utils/api.js";
 
 const ChatContext = createContext(null);
 
-function isSystemAdmin() { return getAuthUser()?.role === "admin"; }
-
-function createSystemMessage(chatId, text) { return { id: uid(), chatId, sender: "system", senderName: "System", type: "system", text, createdAt: now(), replyTo: null, deletedForAll: false, deletedFor: [], status: "read", unread: false, reactions: [], isStarred: false, isPinned: false }; }
-
-function reducer(state, action) {
-  const currentUser = getAuthUser();
-  const currentEmail = currentUser ? currentUser.email : "me";
-
-  switch (action.type) {
-    case "INIT": return { chats: action.chats };
-    case "RESET": saveChats(seed); return { chats: seed };
-
-    case "CLEAN_EXPIRED": {
-      const nowMs = now(); let changed = false;
-      const chats = state.chats.map(c => {
-        const threshold = getDisappearingThreshold(c.disappearingMode); if (!threshold) return c;
-        const initialLen = c.messages.length;
-        const validMessages = c.messages.filter(m => { if (m.isPinned) return true; return (nowMs - m.createdAt) <= threshold; });
-        if (validMessages.length !== initialLen) { changed = true; return { ...c, messages: validMessages }; }
-        return c;
-      });
-      if (changed) { saveChats(chats); return { chats }; }
-      return state;
-    }
-
-    case "SET_DISAPPEARING_MODE": {
-      const chats = state.chats.map((c) => {
-        if (c.id !== action.chatId) return c;
-        const text = action.mode === "off" ? "You turned off disappearing messages." : `You turned on disappearing messages. New messages will disappear from this chat after ${action.mode === '24h' ? '24 hours' : action.mode === '7d' ? '7 days' : '90 days'}.`;
-        return { ...c, disappearingMode: action.mode, messages: [...c.messages, createSystemMessage(c.id, text)] };
-      });
-      saveChats(chats); return { chats };
-    }
-
-    case "SEND": {
-      const text = action.text.trim(); if (!text) return state;
-      const target = state.chats.find((c) => c.id === action.chatId); if (!target || target.blocked || target.hasLeft) return state;
-      const linkPreview = generateMockLinkPreview(text);
-      const msg = { id: uid(), chatId: action.chatId, sender: currentEmail, senderName: currentUser?.name || "You", type: "text", text, createdAt: now(), replyTo: action.replyTo ? { id: action.replyTo.id, text: action.replyTo.text, type: action.replyTo.type, fileName: action.replyTo.fileName, senderName: action.replyTo.senderName || 'Them' } : null, deletedForAll: false, deletedFor: [], status: "read", unread: false, reactions: [], isStarred: false, isPinned: false, linkPreview };
-      const chats = state.chats.map((c) => c.id === action.chatId ? { ...c, messages: [...c.messages, msg] } : c);
-      saveChats(chats); return { chats };
-    }
-
-    case "SEND_ATTACHMENT": {
-      const target = state.chats.find((c) => c.id === action.chatId); if (!target || target.blocked || target.hasLeft) return state;
-      const msg = { id: uid(), chatId: action.chatId, sender: currentEmail, senderName: currentUser?.name || "You", type: action.attachmentType, text: action.fileName || "", fileUrl: action.fileUrl || "", fileName: action.fileName || "", createdAt: now(), replyTo: action.replyTo ? { id: action.replyTo.id, text: action.replyTo.text, type: action.replyTo.type, fileName: action.replyTo.fileName, senderName: action.replyTo.senderName || 'Them' } : null, deletedForAll: false, deletedFor: [], status: "read", unread: false, reactions: [], isStarred: false, isPinned: false };
-      const chats = state.chats.map((c) => c.id === action.chatId ? { ...c, messages: [...c.messages, msg] } : c);
-      saveChats(chats); return { chats };
-    }
-
-    case "SEND_POLL": {
-      const target = state.chats.find((c) => c.id === action.chatId); if (!target || target.blocked || target.hasLeft) return state;
-      const msg = { id: uid(), chatId: action.chatId, sender: currentEmail, senderName: currentUser?.name || "You", type: "poll", text: action.question, createdAt: now(), pollOptions: action.options.map(opt => ({ id: uid(), text: opt, votedBy: [] })), allowMultiple: action.allowMultiple, replyTo: null, deletedForAll: false, deletedFor: [], status: "read", unread: false, reactions: [], isStarred: false, isPinned: false };
-      const chats = state.chats.map((c) => c.id === action.chatId ? { ...c, messages: [...c.messages, msg] } : c);
-      saveChats(chats); return { chats };
-    }
-
-    case "VOTE_POLL": {
-      const chats = state.chats.map((chat) => {
-        if (chat.id !== action.chatId) return chat;
-        return {
-          ...chat, messages: chat.messages.map((msg) => {
-            if (msg.id !== action.messageId || msg.type !== "poll") return msg;
-            const newOptions = msg.pollOptions.map(opt => {
-              if (opt.id === action.optionId) {
-                const hasVoted = opt.votedBy.includes(currentEmail);
-                return { ...opt, votedBy: hasVoted ? opt.votedBy.filter(id => id !== currentEmail) : [...opt.votedBy, currentEmail] };
-              } else if (!msg.allowMultiple) return { ...opt, votedBy: opt.votedBy.filter(id => id !== currentEmail) };
-              return opt;
-            });
-            return { ...msg, pollOptions: newOptions };
-          })
-        };
-      });
-      saveChats(chats); return { chats };
-    }
-
-    case "EDIT_MESSAGE": {
-      const chats = state.chats.map((c) => { if (c.id !== action.chatId) return c; return { ...c, messages: c.messages.map((m) => m.id === action.messageId ? { ...m, text: action.text.trim(), isEdited: true } : m) }; });
-      saveChats(chats); return { chats };
-    }
-
-    case "TOGGLE_REACTION": {
-      const chats = state.chats.map(c => { if (c.id !== action.chatId) return c; return { ...c, messages: c.messages.map(m => { if (m.id !== action.messageId) return m; const exists = m.reactions.includes(action.emoji); return { ...m, reactions: exists ? m.reactions.filter(e => e !== action.emoji) : [...m.reactions, action.emoji] }; })}; });
-      saveChats(chats); return { chats };
-    }
-
-    case "TOGGLE_STAR": {
-      const chats = state.chats.map(c => { if (c.id !== action.chatId) return c; return { ...c, messages: c.messages.map(m => m.id === action.messageId ? { ...m, isStarred: !m.isStarred } : m) }; });
-      saveChats(chats); return { chats };
-    }
-
-    case "TOGGLE_PIN": {
-      const chats = state.chats.map(c => { if (c.id !== action.chatId) return c; return { ...c, messages: c.messages.map(m => m.id === action.messageId ? { ...m, isPinned: !m.isPinned } : m) }; });
-      saveChats(chats); return { chats };
-    }
-
-    case "DELETE_MESSAGE_FOR_ME": {
-      const ids = Array.isArray(action.messageId) ? action.messageId : [action.messageId];
-      const chats = state.chats.map((chat) => {
-        if (chat.id !== action.chatId) return chat;
-        return { ...chat, messages: chat.messages.map(msg => { if (ids.includes(msg.id)) { return { ...msg, deletedFor: [...(msg.deletedFor || []), currentEmail] }; } return msg; }) };
-      });
-      saveChats(chats); return { chats };
-    }
-
-    case "DELETE_MESSAGE_FOR_ALL": {
-      const ids = Array.isArray(action.messageId) ? action.messageId : [action.messageId];
-      const chats = state.chats.map((chat) => {
-        if (String(chat.id) !== String(action.chatId)) return chat;
-        return {
-          ...chat, messages: chat.messages.map((msg) => {
-            if (!ids.includes(msg.id)) return msg;
-            if (msg.sender !== currentEmail && !isSystemAdmin()) return msg; 
-            return { ...msg, type: "text", text: "This message was deleted", fileUrl: "", fileName: "", deletedForAll: true, reactions: [], isPinned: false };
-          }),
-        };
-      });
-      saveChats(chats); return { chats };
-    }
-
-    case "ADD_CONTACT": {
-      const name = action.payload.name.trim(); if (!name) return state;
-      const targetEmail = action.payload.contact?.trim();
-      const newChat = { id: action.payload.id || uid(), kind: "dm", name, avatarUrl: action.payload.avatarUrl || `https://i.pravatar.cc/100?u=${encodeURIComponent(name + Date.now())}`, isOnline: true, lastSeen: "online", about: action.payload.about || "Hey there! I am using Oppty Chats.", contact: targetEmail || "Not available", blocked: false, hasLeft: false, disappearingMode: "off", participants: targetEmail ? [currentEmail, targetEmail] : [currentEmail], messages: [], };
-      const chats = [newChat, ...state.chats];
-      saveChats(chats); return { chats };
-    }
-
-    case "ADD_GROUP": {
-      const name = action.payload.name.trim(); if (!name) return state;
-      const sysMsg = createSystemMessage(uid(), "You created this group");
-      const adminMember = { id: currentUser?.id || uid(), name: currentUser?.name || "You", email: currentEmail, avatarUrl: currentUser?.avatarUrl, isAdmin: true };
-      const newGroup = { id: sysMsg.chatId, kind: "group", name, avatarUrl: action.payload.avatarUrl || `https://i.pravatar.cc/100?u=${encodeURIComponent("group_" + name + Date.now())}`, isOnline: false, lastSeen: "", about: action.payload.about?.trim() || "New group created in Oppty Chats.", contact: action.payload.contact?.trim() || "Not available", isAdmin: true, blocked: false, hasLeft: false, disappearingMode: "off", members: [adminMember], messages: [sysMsg], };
-      const chats = [newGroup, ...state.chats];
-      saveChats(chats); return { chats };
-    }
-
-    case "UPDATE_CHAT_NAME": {
-      const name = action.name.trim(); if (!name) return state;
-      const chats = state.chats.map((chat) => {
-        if (String(chat.id) !== String(action.chatId)) return chat;
-        let updatedChat = { ...chat, name };
-        if (chat.kind === "group" && !chat.hasLeft) updatedChat.messages = [...chat.messages, createSystemMessage(chat.id, `You changed the subject to "${name}"`)];
-        return updatedChat;
-      });
-      saveChats(chats); return { chats };
-    }
-
-    case "UPDATE_GROUP_ABOUT": {
-      const about = action.about.trim();
-      const chats = state.chats.map((chat) => {
-        if (String(chat.id) !== String(action.chatId)) return chat;
-        return { ...chat, about, messages: [...chat.messages, createSystemMessage(chat.id, "You changed the group description")] };
-      });
-      saveChats(chats); return { chats };
-    }
-
-    case "DELETE_CHAT": {
-      // NOTE: Removed `if (!isSystemAdmin()) return state;` allowing anyone to delete their local chat history
-      const chats = state.chats.filter((chat) => String(chat.id) !== String(action.chatId));
-      saveChats(chats); return { chats };
-    }
-
-    case "TOGGLE_BLOCK_CHAT": {
-      // NOTE: Removed `if (!isSystemAdmin()) return state;` allowing anyone to block a chat locally
-      const chats = state.chats.map((chat) => String(chat.id) === String(action.chatId) ? { ...chat, blocked: !chat.blocked } : chat);
-      saveChats(chats); return { chats };
-    }
-
-    case "ADD_GROUP_MEMBER": {
-      const chats = state.chats.map((chat) => {
-        if (String(chat.id) !== String(action.chatId) || chat.kind !== "group") return chat;
-        const exists = (chat.members || []).some((member) => String(member.id) === String(action.member.id));
-        if (exists) return chat;
-        return { ...chat, members: [...(chat.members || []), { ...action.member, isAdmin: false }], messages: [...chat.messages, createSystemMessage(chat.id, `You added ${action.member.name}`)] };
-      });
-      saveChats(chats); return { chats };
-    }
-
-    case "REMOVE_GROUP_MEMBER": {
-      const chats = state.chats.map((chat) => {
-        if (String(chat.id) !== String(action.chatId) || chat.kind !== "group") return chat;
-        const memberToRemove = chat.members.find(m => String(m.id) === String(action.memberId));
-        if (!memberToRemove) return chat;
-        return { ...chat, members: chat.members.filter((m) => String(m.id) !== String(action.memberId)), messages: [...chat.messages, createSystemMessage(chat.id, `You removed ${memberToRemove.name}`)] };
-      });
-      saveChats(chats); return { chats };
-    }
-
-    case "PROMOTE_ADMIN": {
-      const chats = state.chats.map((chat) => {
-        if (String(chat.id) !== String(action.chatId) || chat.kind !== "group") return chat;
-        const member = chat.members.find(m => String(m.id) === String(action.memberId));
-        if (!member) return chat;
-        return { ...chat, members: chat.members.map(m => String(m.id) === String(action.memberId) ? { ...m, isAdmin: true } : m), messages: [...chat.messages, createSystemMessage(chat.id, `You made ${member.name} a group admin`)] }
-      });
-      saveChats(chats); return { chats };
-    }
-
-    case "DEMOTE_ADMIN": {
-      const chats = state.chats.map((chat) => {
-        if (String(chat.id) !== String(action.chatId) || chat.kind !== "group") return chat;
-        const member = chat.members.find(m => String(m.id) === String(action.memberId));
-        if (!member) return chat;
-        return { ...chat, members: chat.members.map(m => String(m.id) === String(action.memberId) ? { ...m, isAdmin: false } : m), messages: [...chat.messages, createSystemMessage(chat.id, `You dismissed ${member.name} as admin`)] }
-      });
-      saveChats(chats); return { chats };
-    }
-
-    case "LEAVE_GROUP": {
-      const chats = state.chats.map((chat) => {
-        if (String(chat.id) !== String(action.chatId) || chat.kind !== "group") return chat;
-        return { ...chat, hasLeft: true, messages: [...chat.messages, createSystemMessage(chat.id, "You left")] }
-      });
-      saveChats(chats); return { chats };
-    }
-
-    default: return state;
-  }
-}
-
-function ToastContainer({ toasts }) {
-  return (
-    <div className="globalToastContainer">
-      {toasts.map(toast => (
-        <div key={toast.id} className={`globalToast ${toast.type}`}>{toast.message}</div>
-      ))}
-    </div>
-  );
-}
-
 export function ChatProvider({ children }) {
-  const [state, dispatch] = useReducer(reducer, { chats: seed });
-  const [isLoading, setIsLoading] = useState(true);
-  const [toasts, setToasts] = useState([]);
+  const [chats, setChats] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [groupsLoading, setGroupsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [totalUnread, setTotalUnread] = useState(0);
 
-  const currentUser = getAuthUser();
-  const currentUserEmail = currentUser?.email;
+  // Refs to prevent concurrent fetches
+  const fetchingRef = useRef(false);
+  const fetchingGroupsRef = useRef(false);
+  const lastFetchTime = useRef(0);
+  const lastGroupFetchTime = useRef(0);
 
-  const showToast = (message, type = 'success') => {
-    const id = Date.now() + Math.random();
-    setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => { setToasts(prev => prev.filter(t => t.id !== id)); }, 3000);
-  };
+  // ✅ FIX: Use a ref-based helper so we never need chats/groups in dependency arrays
+  const chatsRef = useRef(chats);
+  chatsRef.current = chats;
+  const groupsRef = useRef(groups);
+  groupsRef.current = groups;
 
-  useEffect(() => {
-    const persisted = loadChats();
-    const merged = normalizeAndMerge(persisted);
-    dispatch({ type: "INIT", chats: merged });
-    saveChats(merged);
-    const timer = setTimeout(() => setIsLoading(false), 600);
-    const cleanupInterval = setInterval(() => { dispatch({ type: "CLEAN_EXPIRED" }); }, 60000);
-    return () => { clearTimeout(timer); clearInterval(cleanupInterval); };
+  const updateTotalUnread = useCallback((chatList, groupList) => {
+    const chatUnread = chatList.reduce((sum, chat) => sum + (chat.unreadCount || 0), 0);
+    const groupUnread = groupList.reduce((sum, group) => sum + (group.unreadCount || 0), 0);
+    setTotalUnread(chatUnread + groupUnread);
   }, []);
 
-  const userSpecificChats = useMemo(() => {
-    if (!currentUserEmail) return [];
+  // ✅ FIX: ZERO state dependencies — uses refs to read current groups
+  const fetchChats = useCallback(async () => {
+    const authUser = getAuthUser();
+    if (!authUser) {
+      setChats([]);
+      setLoading(false);
+      return;
+    }
 
-    return state.chats
-      .filter(chat => {
-        if (chat.kind === "group") {
-          return chat.members.some(m => m.email === currentUserEmail);
-        }
-        if (chat.kind === "dm") {
-          if (chat.participants && chat.participants.length > 0) {
-            return chat.participants.includes(currentUserEmail);
-          }
-          return true; 
-        }
-        return false;
-      })
-      .map(chat => {
-        let updatedChat = { ...chat };
-        if (chat.kind === "dm" && chat.participants) {
-          const otherEmail = chat.participants.find(e => e !== currentUserEmail) || chat.contact;
-          const otherUser = employeeDB.find(emp => emp.email === otherEmail);
-          if (otherUser) {
-            updatedChat.name = otherUser.name;
-            updatedChat.avatarUrl = otherUser.avatarUrl;
-            updatedChat.contact = otherUser.email;
-          }
-        }
-        updatedChat.messages = chat.messages
-          .filter(m => !(m.deletedFor || []).includes(currentUserEmail))
-          .map(m => ({ ...m, isMine: m.sender === currentUserEmail || m.sender === "me" }));
-        return updatedChat;
+    if (fetchingRef.current) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastFetchTime.current < 2000) {
+      return;
+    }
+    lastFetchTime.current = now;
+    fetchingRef.current = true;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await fetch("/api/users/", {
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
       });
-  }, [state.chats, currentUserEmail]);
 
-  const api = useMemo(
-    () => ({
-      isLoading, showToast, 
-      chats: userSpecificChats,
-      getChatById: (id) => userSpecificChats.find((c) => String(c.id) === String(id)),
-      sendMessage: (chatId, text, replyTo = null) => dispatch({ type: "SEND", chatId, text, replyTo }),
-      sendAttachment: (chatId, attachmentType, fileUrl, fileName, replyTo = null) => dispatch({ type: "SEND_ATTACHMENT", chatId, attachmentType, fileUrl, fileName, replyTo }),
-      sendPoll: (chatId, question, options, allowMultiple) => dispatch({ type: "SEND_POLL", chatId, question, options, allowMultiple }),
-      votePoll: (chatId, messageId, optionId) => dispatch({ type: "VOTE_POLL", chatId, messageId, optionId }),
-      editMessage: (chatId, messageId, text) => dispatch({ type: "EDIT_MESSAGE", chatId, messageId, text }),
-      toggleReaction: (chatId, messageId, emoji) => dispatch({ type: "TOGGLE_REACTION", chatId, messageId, emoji }),
-      toggleStar: (chatId, messageId) => dispatch({ type: "TOGGLE_STAR", chatId, messageId }),
-      togglePin: (chatId, messageId) => dispatch({ type: "TOGGLE_PIN", chatId, messageId }),
-      deleteMessageForMe: (chatId, messageId) => dispatch({ type: "DELETE_MESSAGE_FOR_ME", chatId, messageId }),
-      deleteMessageForAll: (chatId, messageId) => dispatch({ type: "DELETE_MESSAGE_FOR_ALL", chatId, messageId }),
-      addContact: (payload) => dispatch({ type: "ADD_CONTACT", payload }),
-      addGroup: (payload) => dispatch({ type: "ADD_GROUP", payload }),
-      updateChatName: (chatId, name) => dispatch({ type: "UPDATE_CHAT_NAME", chatId, name }),
-      updateGroupAbout: (chatId, about) => dispatch({ type: "UPDATE_GROUP_ABOUT", chatId, about }),
-      deleteChat: (chatId) => dispatch({ type: "DELETE_CHAT", chatId }),
-      toggleBlockChat: (chatId) => dispatch({ type: "TOGGLE_BLOCK_CHAT", chatId }),
-      setDisappearingMode: (chatId, mode) => dispatch({ type: "SET_DISAPPEARING_MODE", chatId, mode }),
-      addGroupMember: (chatId, member) => dispatch({ type: "ADD_GROUP_MEMBER", chatId, member }),
-      removeGroupMember: (chatId, memberId) => dispatch({ type: "REMOVE_GROUP_MEMBER", chatId, memberId }),
-      promoteAdmin: (chatId, memberId) => dispatch({ type: "PROMOTE_ADMIN", chatId, memberId }),
-      demoteAdmin: (chatId, memberId) => dispatch({ type: "DEMOTE_ADMIN", chatId, memberId }),
-      leaveGroup: (chatId) => dispatch({ type: "LEAVE_GROUP", chatId }),
-      resetChats: () => dispatch({ type: "RESET" }),
-      isAdmin: isSystemAdmin(),
-    }),
-    [userSpecificChats, isLoading]
+      if (response.status === 401 || response.status === 403) {
+        setError("Session expired. Please login again.");
+        setChats([]);
+        clearAuthUser();
+        setTimeout(() => {
+          if (window.location.pathname !== "/login") {
+            window.location.href = "/login";
+          }
+        }, 500);
+        return;
+      }
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const users = await response.json();
+      const currentUserId = authUser.id;
+
+      const chatList = users
+        .filter((user) => user.id !== currentUserId)
+        .map((user) => ({
+          id: String(user.id),
+          name: user.name || user.email,
+          email: user.email,
+          role: user.role,
+          about: user.about || "",
+          kind: "dm",
+          avatarUrl:
+            user.avatarUrl ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(
+              user.name || user.email
+            )}&background=random`,
+          messages: [],
+          lastMessage: user.lastMessage || null,
+          unreadCount: user.unreadCount || 0,
+        }));
+
+      setChats(chatList);
+      // ✅ Read groups from ref, not from closure
+      updateTotalUnread(chatList, groupsRef.current);
+    } catch (err) {
+      console.error("❌ Fetch error:", err);
+      setError("Failed to load chats. Check your connection.");
+    } finally {
+      setLoading(false);
+      fetchingRef.current = false;
+    }
+  }, [updateTotalUnread]); // ✅ No groups dependency
+
+  // ✅ FIX: ZERO state dependencies — uses refs to read current chats
+  const fetchGroups = useCallback(async () => {
+    const authUser = getAuthUser();
+    if (!authUser) {
+      setGroups([]);
+      return;
+    }
+
+    if (fetchingGroupsRef.current) {
+      return;
+    }
+
+    const now = Date.now();
+    if (now - lastGroupFetchTime.current < 2000) {
+      return;
+    }
+    lastGroupFetchTime.current = now;
+    fetchingGroupsRef.current = true;
+
+    try {
+      setGroupsLoading(true);
+
+      const response = await apiFetch("/api/groups/", { method: "GET" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const groupsData = await response.json();
+
+      const groupList = groupsData.map((group) => ({
+        id: `group-${group.id}`,
+        groupId: group.id,
+        name: group.name,
+        description: group.description || "",
+        kind: "group",
+        isGroup: true,
+        avatarUrl:
+          group.avatarUrl ||
+          `https://ui-avatars.com/api/?name=${encodeURIComponent(
+            group.name
+          )}&background=4CAF50&color=fff`,
+        memberCount: group.memberCount || 0,
+        members: group.members || [],
+        createdBy: group.createdBy,
+        createdAt: group.createdAt,
+        messages: [],
+        lastMessage: group.lastMessage || null,
+        unreadCount: group.unreadCount || 0,
+      }));
+
+      setGroups(groupList);
+      // ✅ Read chats from ref, not from closure
+      updateTotalUnread(chatsRef.current, groupList);
+    } catch (err) {
+      console.error("❌ Fetch groups error:", err);
+    } finally {
+      setGroupsLoading(false);
+      fetchingGroupsRef.current = false;
+    }
+  }, [updateTotalUnread]); // ✅ No chats dependency
+
+  // Create Group
+  const createGroup = useCallback(async (groupData) => {
+    const authUser = getAuthUser();
+    if (!authUser || (authUser.role !== "admin" && authUser.role !== "superadmin")) {
+      throw new Error("Only admins can create groups");
+    }
+
+    const response = await apiFetch("/api/groups/create/", {
+      method: "POST",
+      body: JSON.stringify({
+        name: groupData.name,
+        description: groupData.description || "",
+        members: groupData.members || [],
+      }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.error || "Failed to create group");
+    }
+
+    const newGroup = {
+      id: `group-${result.id}`,
+      groupId: result.id,
+      name: result.name,
+      description: result.description || "",
+      kind: "group",
+      isGroup: true,
+      avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+        result.name
+      )}&background=4CAF50&color=fff`,
+      memberCount: result.memberCount || 1,
+      createdBy: authUser.name,
+      createdAt: result.createdAt,
+      messages: [],
+      lastMessage: null,
+      unreadCount: 0,
+    };
+
+    setGroups((prev) => [newGroup, ...prev]);
+    return result;
+  }, []);
+
+  // Get Chat/Group by ID
+  const getChatById = useCallback(
+    (chatId) => {
+      if (!chatId) return null;
+
+      const cleanId = String(chatId).replace("emp-", "").replace("group-", "");
+
+      if (String(chatId).startsWith("group-")) {
+        return (
+          groups.find(
+            (g) => g.id === chatId || g.groupId === Number(cleanId)
+          ) || null
+        );
+      }
+
+      const chat = chats.find((c) => c.id === cleanId);
+      if (chat) return chat;
+
+      const group = groups.find(
+        (g) => g.id === `group-${cleanId}` || g.groupId === Number(cleanId)
+      );
+      return group || null;
+    },
+    [chats, groups]
   );
 
+  // Set Messages
+  const setMessages = useCallback((chatId, messages) => {
+    const cleanId = String(chatId).replace("emp-", "").replace("group-", "");
+    const isGroup = String(chatId).startsWith("group-");
+
+    if (isGroup) {
+      setGroups((prev) =>
+        prev.map((g) =>
+          g.id === chatId || g.groupId === Number(cleanId)
+            ? {
+                ...g,
+                messages,
+                lastMessage: messages[messages.length - 1] || null,
+              }
+            : g
+        )
+      );
+    } else {
+      setChats((prev) =>
+        prev.map((c) =>
+          c.id === cleanId
+            ? {
+                ...c,
+                messages,
+                lastMessage: messages[messages.length - 1] || null,
+              }
+            : c
+        )
+      );
+    }
+  }, []);
+
+  // ✅ FIX: Receive Message — uses functional updaters + refs, no state deps
+  const receiveMessage = useCallback(
+    (chatId, message) => {
+      const cleanId = String(chatId).replace("emp-", "").replace("group-", "");
+      const isGroup = String(chatId).startsWith("group-");
+
+      const updater = (items) =>
+        items.map((item) => {
+          const matches = isGroup
+            ? item.id === chatId || item.groupId === Number(cleanId)
+            : item.id === cleanId;
+
+          if (!matches) return item;
+          if (item.messages?.some((m) => m.id === message.id)) return item;
+
+          const newLastMessage = {
+            id: message.id,
+            text: message.text,
+            sender: message.isMine ? "me" : message.senderName || "them",
+            createdAt: new Date(message.createdAt).toISOString(),
+          };
+
+          return {
+            ...item,
+            messages: [...(item.messages || []), message],
+            lastMessage: newLastMessage,
+            unreadCount: message.isMine
+              ? item.unreadCount
+              : (item.unreadCount || 0) + 1,
+          };
+        });
+
+      if (isGroup) {
+        setGroups((prev) => {
+          const updated = updater(prev);
+          updateTotalUnread(chatsRef.current, updated);
+          return updated;
+        });
+      } else {
+        setChats((prev) => {
+          const updated = updater(prev);
+          updateTotalUnread(updated, groupsRef.current);
+          return updated;
+        });
+      }
+    },
+    [updateTotalUnread] // ✅ No chats/groups dependency
+  );
+
+  // Update Message
+  const updateMessage = useCallback((chatId, messageId, updates) => {
+    const cleanId = String(chatId).replace("emp-", "").replace("group-", "");
+    const isGroup = String(chatId).startsWith("group-");
+
+    const updater = (items) =>
+      items.map((item) => {
+        const matches = isGroup
+          ? item.id === chatId || item.groupId === Number(cleanId)
+          : item.id === cleanId;
+
+        if (!matches) return item;
+
+        return {
+          ...item,
+          messages:
+            item.messages?.map((m) =>
+              m.id === messageId ? { ...m, ...updates } : m
+            ) || [],
+        };
+      });
+
+    if (isGroup) {
+      setGroups(updater);
+    } else {
+      setChats(updater);
+    }
+  }, []);
+
+  // ✅ FIX: Single deleteMessage (removed duplicate)
+  const deleteMessage = useCallback((chatId, messageId, deleteType) => {
+    const cleanId = String(chatId).replace("emp-", "").replace("group-", "");
+    const isGroup = String(chatId).startsWith("group-");
+
+    const updater = (items) =>
+      items.map((item) => {
+        const matches = isGroup
+          ? item.id === chatId || item.groupId === Number(cleanId)
+          : item.id === cleanId;
+
+        if (!matches) return item;
+
+        if (deleteType === "forMe") {
+          return {
+            ...item,
+            messages: item.messages?.filter((m) => m.id !== messageId) || [],
+          };
+        } else {
+          return {
+            ...item,
+            messages:
+              item.messages?.map((m) =>
+                m.id === messageId
+                  ? {
+                      ...m,
+                      text: "🚫 This message was deleted",
+                      isDeleted: true,
+                      deletedForEveryone: true,
+                    }
+                  : m
+              ) || [],
+          };
+        }
+      });
+
+    if (isGroup) {
+      setGroups(updater);
+    } else {
+      setChats(updater);
+    }
+  }, []);
+
+  // ✅ FIX: Mark as Read — uses functional updaters + refs
+  const markChatAsRead = useCallback(
+    async (chatId) => {
+      const cleanId = String(chatId).replace("emp-", "").replace("group-", "");
+      const isGroup = String(chatId).startsWith("group-");
+
+      try {
+        if (!isGroup) {
+          await apiFetch(`/api/messages/${cleanId}/read/`, { method: "POST" });
+        }
+
+        if (isGroup) {
+          setGroups((prev) => {
+            const updated = prev.map((g) =>
+              g.id === chatId || g.groupId === Number(cleanId)
+                ? { ...g, unreadCount: 0 }
+                : g
+            );
+            updateTotalUnread(chatsRef.current, updated);
+            return updated;
+          });
+        } else {
+          setChats((prev) => {
+            const updated = prev.map((c) =>
+              c.id === cleanId ? { ...c, unreadCount: 0 } : c
+            );
+            updateTotalUnread(updated, groupsRef.current);
+            return updated;
+          });
+        }
+      } catch (err) {
+        console.error("Failed to mark as read:", err);
+      }
+    },
+    [updateTotalUnread] // ✅ No chats/groups dependency
+  );
+
+  // Clear Chats
+  const clearChats = useCallback(() => {
+    setChats([]);
+    setGroups([]);
+    setTotalUnread(0);
+    setError(null);
+  }, []);
+
   return (
-    <ChatContext.Provider value={api}>
+    <ChatContext.Provider
+      value={{
+        chats,
+        groups,
+        loading,
+        groupsLoading,
+        error,
+        totalUnread,
+        fetchChats,
+        fetchGroups,
+        createGroup,
+        getChatById,
+        setMessages,
+        receiveMessage,
+        updateMessage,
+        deleteMessage,
+        clearChats,
+        markChatAsRead,
+      }}
+    >
       {children}
-      <ToastContainer toasts={toasts} />
     </ChatContext.Provider>
   );
 }
 
 export function useChats() {
-  const ctx = useContext(ChatContext);
-  if (!ctx) throw new Error("useChats must be used inside ChatProvider");
-  return ctx;
+  const context = useContext(ChatContext);
+  if (!context) throw new Error("useChats must be used within ChatProvider");
+  return context;
 }

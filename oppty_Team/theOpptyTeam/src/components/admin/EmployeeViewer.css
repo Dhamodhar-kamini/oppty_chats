@@ -1,0 +1,471 @@
+/* src/components/admin/EmployeeViewer.css */
+
+.employee-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #f0f2f5;
+}
+
+/* Header */
+.viewer-header {
+  background: #fff;
+  padding: 14px 20px;
+  border-bottom: 1px solid #e9edef;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-shrink: 0;
+}
+
+.viewer-header .back-btn {
+  padding: 10px 16px;
+  background: #00a884;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.viewer-header .back-btn:hover {
+  background: #008f72;
+}
+
+.viewer-employee-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.viewer-employee-info img {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #00a884;
+}
+
+.viewer-employee-info h2 {
+  font-size: 18px;
+  margin: 0;
+  color: #111b21;
+}
+
+.viewer-employee-info p {
+  font-size: 13px;
+  color: #667781;
+  margin: 2px 0 0;
+}
+
+.viewer-badge {
+  flex-shrink: 0;
+}
+
+.admin-viewing-label {
+  background: #fff3cd;
+  color: #856404;
+  padding: 8px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Content Layout */
+.viewer-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* Sidebar */
+.viewer-sidebar {
+  width: 320px;
+  background: #fff;
+  border-right: 1px solid #e9edef;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Tabs */
+.viewer-tabs {
+  display: flex;
+  border-bottom: 1px solid #e9edef;
+  flex-shrink: 0;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #667781;
+  transition: all 0.2s;
+  border-bottom: 3px solid transparent;
+}
+
+.tab-btn:hover {
+  background: #f5f6f6;
+}
+
+.tab-btn.active {
+  color: #00a884;
+  border-bottom-color: #00a884;
+}
+
+/* Contacts List */
+.viewer-contacts-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.viewer-contact-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  cursor: pointer;
+  border-bottom: 1px solid #f5f6f6;
+  transition: background 0.2s;
+}
+
+.viewer-contact-item:hover {
+  background: #f5f6f6;
+}
+
+.viewer-contact-item.active {
+  background: #e7f8f2;
+  border-left: 4px solid #00a884;
+}
+
+.viewer-contact-item img {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  margin-right: 12px;
+  object-fit: cover;
+}
+
+.contact-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.contact-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: #111b21;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.contact-preview {
+  font-size: 13px;
+  color: #667781;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.contact-meta {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.message-count {
+  display: inline-block;
+  background: #e9edef;
+  color: #667781;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.empty-list {
+  padding: 40px 20px;
+  text-align: center;
+  color: #667781;
+}
+
+/* Messages Panel */
+.viewer-messages {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #efeae2;
+  overflow: hidden;
+}
+
+.viewer-messages-header {
+  background: #f0f2f5;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid #e9edef;
+  flex-shrink: 0;
+}
+
+.viewer-messages-header img {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.viewer-messages-header h3 {
+  margin: 0;
+  font-size: 16px;
+  flex: 1;
+}
+
+.group-badge {
+  background: #4CAF50;
+  color: #fff;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 8px;
+}
+
+.message-count-header {
+  font-size: 12px;
+  color: #667781;
+  background: #e9edef;
+  padding: 4px 10px;
+  border-radius: 10px;
+}
+
+/* Messages List */
+.viewer-messages-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.viewer-message {
+  display: flex;
+  gap: 8px;
+  max-width: 75%;
+}
+
+.viewer-message.sent {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.viewer-message.received {
+  align-self: flex-start;
+}
+
+.message-avatar img {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.message-content {
+  background: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.08);
+}
+
+.viewer-message.sent .message-content {
+  background: #d9fdd3;
+}
+
+.message-sender {
+  font-size: 12px;
+  font-weight: 600;
+  color: #00a884;
+  margin-bottom: 4px;
+}
+
+.viewed-employee-tag {
+  color: #ff6b00;
+  font-weight: 700;
+  margin-left: 4px;
+}
+
+.message-text {
+  font-size: 14px;
+  color: #111b21;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.message-file {
+  margin-bottom: 6px;
+}
+
+.message-image {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 8px;
+}
+
+.file-link {
+  display: inline-block;
+  padding: 6px 10px;
+  background: #f0f2f5;
+  border-radius: 6px;
+  text-decoration: none;
+  color: #00a884;
+  font-size: 13px;
+}
+
+.message-reactions-display {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.message-reactions-display span {
+  font-size: 12px;
+  background: #f0f2f5;
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.message-time {
+  font-size: 11px;
+  color: #667781;
+  margin-top: 4px;
+  text-align: right;
+}
+
+.empty-messages {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #667781;
+}
+
+/* Footer */
+.viewer-messages-footer {
+  background: #fff3cd;
+  padding: 12px 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.admin-notice {
+  font-size: 13px;
+  color: #856404;
+}
+
+/* Empty State */
+.viewer-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #667781;
+  text-align: center;
+}
+
+.viewer-empty .empty-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+}
+
+.viewer-empty p {
+  font-size: 18px;
+  margin: 0 0 8px;
+  color: #41525d;
+}
+
+.viewer-empty .hint {
+  font-size: 14px;
+  color: #667781;
+}
+
+/* Loading */
+.viewer-loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #667781;
+}
+
+.viewer-loading .spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e9edef;
+  border-top-color: #00a884;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 12px;
+}
+
+/* Error */
+.viewer-error {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #667781;
+}
+
+.viewer-error p {
+  font-size: 16px;
+  margin-bottom: 16px;
+}
+
+.viewer-error .back-btn {
+  padding: 10px 20px;
+  background: #00a884;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .viewer-header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .viewer-content {
+    flex-direction: column;
+  }
+
+  .viewer-sidebar {
+    width: 100%;
+    max-height: 300px;
+  }
+
+  .viewer-message {
+    max-width: 90%;
+  }
+
+  .admin-viewing-label {
+    font-size: 10px;
+    padding: 6px 10px;
+  }
+}

@@ -1,14 +1,14 @@
-// src/components/chat/ChatPage.jsx
+// src/components/chat/GroupChatPage.jsx
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useChats } from "../../context/ChatContext.jsx";
 import { getAuthUser } from "../../utils/auth.js";
-import { apiFetch, uploadMessageFile } from "../../utils/api.js";
+import { apiFetch, uploadMessageFile, fetchGroupDetails } from "../../utils/api.js";
 import MessageBubble from "./MessageBubble.jsx";
 import FileUploadButton from "./FileUploadButton.jsx";
 import MeetButton from "./MeetButton.jsx";
 
-export default function ChatPage() {
+export default function GroupChatPage() {
   const { chatId } = useParams();
   const navigate = useNavigate();
   const { getChatById, receiveMessage, setMessages, updateMessage, deleteMessage } = useChats();
@@ -17,7 +17,8 @@ export default function ChatPage() {
   const [text, setText] = useState("");
   const [connectionStatus, setConnectionStatus] = useState("connecting");
   const [error, setError] = useState(null);
-  const [isTyping, setIsTyping] = useState(false);
+  const [groupInfo, setGroupInfo] = useState(null);
+  const [typingUsers, setTypingUsers] = useState([]);
   
   const socketRef = useRef(null);
   const endRef = useRef(null);
@@ -25,28 +26,41 @@ export default function ChatPage() {
   const isConnectingRef = useRef(false);
   const typingTimeoutRef = useRef(null);
 
-  const myId = useMemo(() => {
-    const id = authUser?.id;
-    return id ? String(id).replace("emp-", "") : null;
-  }, [authUser]);
-
-  const targetId = useMemo(() => {
-    return chatId ? String(chatId).replace("emp-", "") : null;
+  // Extract group ID
+  const groupId = useMemo(() => {
+    if (!chatId) return null;
+    return String(chatId).replace("group-", "");
   }, [chatId]);
+
+  const myId = useMemo(() => {
+    return authUser?.id ? String(authUser.id) : null;
+  }, [authUser]);
 
   const chat = useMemo(() => getChatById(chatId), [chatId, getChatById]);
 
-  // Fetch messages
+  // Fetch group info
+  const loadGroupInfo = useCallback(async () => {
+    if (!groupId) return;
+    
+    try {
+      const data = await fetchGroupDetails(groupId);
+      setGroupInfo(data);
+    } catch (err) {
+      console.error("Fetch group info error:", err);
+    }
+  }, [groupId]);
+
+  // Fetch group messages
   const fetchMessages = useCallback(async () => {
-    if (!targetId) return;
+    if (!groupId) return;
 
     try {
-      const response = await apiFetch(`/api/messages/${targetId}/`, {
+      const response = await apiFetch(`/api/groups/${groupId}/messages/`, {
         method: "GET",
       });
 
       if (!response.ok) {
-        console.error("Failed to fetch messages:", response.status);
+        console.error("Failed to fetch group messages:", response.status);
         return;
       }
 
@@ -56,7 +70,7 @@ export default function ChatPage() {
         const formatted = data.map((m) => ({
           id: m.id,
           text: m.text || "",
-          isMine: m.sender === "me",
+          isMine: m.sender === "me" || m.sender_id === Number(myId),
           senderId: m.sender_id,
           senderName: m.sender_name,
           senderAvatar: m.sender_avatar,
@@ -81,14 +95,13 @@ export default function ChatPage() {
         setMessages(chatId, formatted);
       }
     } catch (err) {
-      console.error("Fetch messages error:", err);
+      console.error("Fetch group messages error:", err);
     }
-  }, [chatId, targetId, setMessages]);
+  }, [chatId, groupId, myId, setMessages]);
 
-  // Connect WebSocket
+  // Connect WebSocket for group
   const connectWebSocket = useCallback(() => {
-    if (isConnectingRef.current) return;
-    if (!myId || !targetId) return;
+    if (isConnectingRef.current || !groupId || !myId) return;
 
     if (socketRef.current) {
       socketRef.current.close();
@@ -99,9 +112,9 @@ export default function ChatPage() {
 
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsHost = window.location.host;
-    const wsUrl = `${wsProtocol}//${wsHost}/ws/chat/private/emp-${myId}/emp-${targetId}/`;
+    const wsUrl = `${wsProtocol}//${wsHost}/ws/chat/group/${groupId}/`;
     
-    console.log("🔌 Connecting WebSocket:", wsUrl);
+    console.log("🔌 Connecting Group WebSocket:", wsUrl);
     setConnectionStatus("connecting");
     setError(null);
 
@@ -110,14 +123,14 @@ export default function ChatPage() {
       socketRef.current = ws;
 
       ws.onopen = () => {
-        console.log("✅ WebSocket Connected");
+        console.log("✅ Group WebSocket Connected");
         setConnectionStatus("connected");
         setError(null);
         isConnectingRef.current = false;
       };
 
       ws.onclose = (event) => {
-        console.log("🔌 WebSocket Closed:", event.code);
+        console.log("🔌 Group WebSocket Closed:", event.code);
         setConnectionStatus("disconnected");
         isConnectingRef.current = false;
         
@@ -129,7 +142,7 @@ export default function ChatPage() {
       };
 
       ws.onerror = () => {
-        console.error("❌ WebSocket Error");
+        console.error("❌ Group WebSocket Error");
         setConnectionStatus("disconnected");
         setError("Connection failed");
         isConnectingRef.current = false;
@@ -155,36 +168,44 @@ export default function ChatPage() {
               fileSize: data.fileSize || null,
               reactions: data.reactions || {},
               userReaction: data.userReaction || null,
-              canEdit: true,
-              canDeleteForEveryone: true,
+              canEdit: Number(data.sender_id) === Number(myId),
+              canDeleteForEveryone: Number(data.sender_id) === Number(myId),
               meetLink: data.meetLink,
               meetTitle: data.meetTitle,
               meetScheduledAt: data.meetScheduledAt,
             });
           } else if (payload.type === "typing") {
-            if (payload.data?.sender_id !== Number(myId)) {
-              setIsTyping(payload.data?.is_typing || false);
+            const { sender_id, sender_name, is_typing } = payload.data || {};
+            if (sender_id !== Number(myId)) {
+              setTypingUsers(prev => {
+                if (is_typing) {
+                  if (!prev.find(u => u.id === sender_id)) {
+                    return [...prev, { id: sender_id, name: sender_name }];
+                  }
+                } else {
+                  return prev.filter(u => u.id !== sender_id);
+                }
+                return prev;
+              });
             }
-          } else if (payload.type === "reaction") {
-            // Handle reaction updates
-            console.log("Reaction update:", payload.data);
           }
         } catch (err) {
-          console.error("Error parsing message:", err);
+          console.error("Error parsing group message:", err);
         }
       };
     } catch (err) {
-      console.error("❌ WebSocket creation error:", err);
+      console.error("❌ Group WebSocket creation error:", err);
       setConnectionStatus("disconnected");
       setError("Failed to connect");
       isConnectingRef.current = false;
     }
-  }, [chatId, myId, targetId, receiveMessage]);
+  }, [chatId, groupId, myId, receiveMessage]);
 
-  // Effect: Setup chat
+  // Effect: Setup group chat
   useEffect(() => {
-    if (!targetId || !myId) return;
+    if (!groupId || !myId) return;
 
+    loadGroupInfo();
     fetchMessages();
     
     const connectTimer = setTimeout(() => {
@@ -196,7 +217,6 @@ export default function ChatPage() {
       
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
       }
       
       if (typingTimeoutRef.current) {
@@ -210,7 +230,7 @@ export default function ChatPage() {
       
       isConnectingRef.current = false;
     };
-  }, [chatId, myId, targetId, fetchMessages, connectWebSocket]);
+  }, [chatId, groupId, myId, loadGroupInfo, fetchMessages, connectWebSocket]);
 
   // Effect: Scroll to bottom
   useEffect(() => {
@@ -259,15 +279,16 @@ export default function ChatPage() {
 
   // File upload
   const handleFileUpload = useCallback(async (file) => {
-    if (!targetId) return;
+    if (!groupId) return;
 
     try {
-      const result = await uploadMessageFile(file, targetId, null, "");
+      const result = await uploadMessageFile(file, null, groupId, "");
       
       receiveMessage(chatId, {
         id: result.id,
         text: result.text || "",
         isMine: true,
+        senderName: authUser?.name,
         createdAt: new Date(result.createdAt).getTime(),
         messageType: result.messageType,
         fileUrl: result.fileUrl,
@@ -283,7 +304,7 @@ export default function ChatPage() {
       console.error("File upload error:", err);
       throw err;
     }
-  }, [chatId, targetId, receiveMessage]);
+  }, [chatId, groupId, authUser, receiveMessage]);
 
   // Handle message update
   const handleMessageUpdate = useCallback((messageId, updates) => {
@@ -297,7 +318,7 @@ export default function ChatPage() {
 
   // Back button for mobile
   const handleBack = () => {
-    navigate("/chats");
+    navigate("/groups");
   };
 
   if (!authUser) {
@@ -308,15 +329,26 @@ export default function ChatPage() {
     );
   }
 
-  if (!chat) {
+  if (!chat && !groupInfo) {
     return (
       <div className="chatEmpty">
-        <div className="emptyIcon">💬</div>
-        <div className="emptyTitle">Select a chat</div>
-        <div className="muted">Choose a conversation to start messaging</div>
+        <div className="emptyIcon">👥</div>
+        <div className="emptyTitle">Select a group</div>
+        <div className="muted">Choose a group to start messaging</div>
       </div>
     );
   }
+
+  const displayInfo = groupInfo || chat;
+  const members = groupInfo?.members || [];
+
+  // Typing indicator text
+  const getTypingText = () => {
+    if (typingUsers.length === 0) return null;
+    if (typingUsers.length === 1) return `${typingUsers[0].name} is typing...`;
+    if (typingUsers.length === 2) return `${typingUsers[0].name} and ${typingUsers[1].name} are typing...`;
+    return `${typingUsers.length} people are typing...`;
+  };
 
   return (
     <div className="chat">
@@ -324,20 +356,23 @@ export default function ChatPage() {
         <button className="back-btn-mobile" onClick={handleBack}>←</button>
         <img 
           className="avatar" 
-          src={chat.avatarUrl} 
-          alt={chat.name}
+          src={displayInfo?.avatarUrl} 
+          alt={displayInfo?.name}
           onError={(e) => {
-            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(chat.name)}&background=random`;
+            e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayInfo?.name || 'G')}&background=4CAF50&color=fff`;
           }}
         />
         <div className="chatHeaderText">
-          <div className="chatHeaderName">{chat.name}</div>
+          <div className="chatHeaderName">
+            👥 {displayInfo?.name}
+          </div>
           <div className="chatHeaderMeta">
-            {isTyping ? (
-              <span className="typing-indicator">typing...</span>
-            ) : (
-              connectionStatus === "connected" ? "Online" : 
-              connectionStatus === "connecting" ? "Connecting..." : "Offline"
+            {getTypingText() || (
+              <>
+                {groupInfo?.memberCount || displayInfo?.memberCount || 0} members
+                {connectionStatus === "connected" ? "" : 
+                 connectionStatus === "connecting" ? " • Connecting..." : " • Offline"}
+              </>
             )}
           </div>
         </div>
@@ -354,17 +389,18 @@ export default function ChatPage() {
       )}
 
       <section className="messages">
-        {(!chat.messages || chat.messages.length === 0) && (
+        {(!chat?.messages || chat.messages.length === 0) && (
           <div className="emptyMessages">
-            <span>👋</span>
-            <p>No messages yet. Say hello!</p>
+            <span>👥</span>
+            <p>No messages in this group yet. Start the conversation!</p>
           </div>
         )}
 
-        {chat.messages?.map((m) => (
+        {chat?.messages?.map((m) => (
           <MessageBubble 
             key={m.id} 
             message={m}
+            showSenderInfo={!m.isMine}
             onMessageUpdate={handleMessageUpdate}
             onMessageDelete={handleMessageDelete}
           />
@@ -379,9 +415,9 @@ export default function ChatPage() {
           disabled={connectionStatus !== "connected"}
         />
         <MeetButton
-          targetId={targetId}
-          groupId={null}
-          members={[]}
+          targetId={null}
+          groupId={groupId}
+          members={members}
           disabled={connectionStatus !== "connected"}
         />
         <textarea
